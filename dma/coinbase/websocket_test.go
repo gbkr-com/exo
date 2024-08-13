@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gbkr-com/mkt"
+	"github.com/gbkr-com/utl"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,10 +14,11 @@ func TestWebsocket(t *testing.T) {
 
 	t.Skip()
 
-	url := "wss://ws-feed.exchange.coinbase.com"
 	errors := []error{}
 
-	conn := &Connection{url: url, symbol: "XRP-USD",
+	conn := &Connection{
+		url:    WebSocketURL,
+		symbol: "XRP-USD",
 		onQuote: func(q *mkt.Quote) {
 			fmt.Println(q)
 		},
@@ -26,6 +28,7 @@ func TestWebsocket(t *testing.T) {
 		onError: func(e error) {
 			errors = append(errors, e)
 		},
+		limiter: utl.NewRateLimiter(WebSocketRequestsPerSecond, time.Second),
 	}
 
 	conn.Open()

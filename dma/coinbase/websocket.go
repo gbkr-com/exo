@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gbkr-com/mkt"
+	"github.com/gbkr-com/utl"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
 )
@@ -19,6 +20,7 @@ type Connection struct {
 	onQuote func(*mkt.Quote)
 	onTrade func(*mkt.Trade)
 	onError func(error)
+	limiter *utl.RateLimiter
 
 	conn *websocket.Conn
 	ctx  context.Context
@@ -28,6 +30,8 @@ type Connection struct {
 
 // Open the connection.
 func (x *Connection) Open() {
+
+	x.limiter.Block()
 
 	x.ctx, x.cxl = context.WithCancel(context.Background())
 	x.exit = &sync.WaitGroup{}
@@ -53,6 +57,8 @@ func (x *Connection) Open() {
 
 // Close the connection.
 func (x *Connection) Close() {
+
+	x.limiter.Block()
 
 	x.cxl()
 	x.exit.Wait()

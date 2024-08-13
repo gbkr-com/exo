@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/gbkr-com/mkt"
+	"github.com/gbkr-com/utl"
 )
 
 // A Subscriber to the Coinbase Exchange ticker.
@@ -14,16 +15,18 @@ type Subscriber struct {
 	onTrade       func(*mkt.Trade)
 	onError       func(error)
 	lock          sync.Mutex
+	limiter       *utl.RateLimiter
 }
 
 // NewSubscriber returns a [*Subscriber] ready to use.
-func NewSubscriber(url string, onQuote func(*mkt.Quote), onTrade func(*mkt.Trade), onError func(error)) *Subscriber {
+func NewSubscriber(url string, onQuote func(*mkt.Quote), onTrade func(*mkt.Trade), onError func(error), limiter *utl.RateLimiter) *Subscriber {
 	return &Subscriber{
 		url:           url,
 		subscriptions: make(map[string]*Connection),
 		onQuote:       onQuote,
 		onTrade:       onTrade,
 		onError:       onError,
+		limiter:       limiter,
 	}
 }
 
@@ -47,6 +50,7 @@ func (x *Subscriber) Subscribe(symbol string) {
 		onQuote: x.onQuote,
 		onTrade: x.onTrade,
 		onError: x.onError,
+		limiter: x.limiter,
 	}
 	conn.Open()
 	x.subscriptions[symbol] = conn

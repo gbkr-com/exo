@@ -4,6 +4,7 @@ go 1.22.1
 
 require (
 	github.com/gbkr-com/mkt v0.3.0
+	github.com/gbkr-com/utl v0.3.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.9.0
@@ -12,7 +13,6 @@ require (
 require (
 	github.com/armon/go-proxyproto v0.0.0-20210323213023-7e956b284f0a // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/gbkr-com/utl v0.3.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.15.12 // indirect
