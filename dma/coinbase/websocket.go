@@ -85,15 +85,15 @@ func (x *Connection) connect() error {
 	return nil
 }
 
-// ExchangeRequest is a Coinbase Exchange websocket request.
-type ExchangeRequest struct {
+// Request is a Coinbase Exchange websocket request.
+type Request struct {
 	Type       string   `json:"type"`
 	ProductIDs []string `json:"product_ids"`
 	Channels   []string `json:"channels"`
 }
 
 func (x *Connection) subscribeRequest() ([]byte, error) {
-	msg := &ExchangeRequest{
+	msg := &Request{
 		Type:       "subscribe",
 		ProductIDs: []string{x.symbol},
 		Channels:   []string{"ticker"},
@@ -102,7 +102,7 @@ func (x *Connection) subscribeRequest() ([]byte, error) {
 }
 
 func (x *Connection) unsubscribeRequest() ([]byte, error) {
-	msg := &ExchangeRequest{
+	msg := &Request{
 		Type:       "unsubscribe",
 		ProductIDs: []string{x.symbol},
 		Channels:   []string{"ticker"},
@@ -110,8 +110,8 @@ func (x *Connection) unsubscribeRequest() ([]byte, error) {
 	return json.Marshal(&msg)
 }
 
-// ExchangeMessageType is a minimal Coinbase Exchange websocket message.
-type ExchangeMessageType struct {
+// MessageType is a minimal Coinbase Exchange websocket message.
+type MessageType struct {
 	Type    string `json:"type"`    // Values are "ticker" or "error".
 	Message string `json:"message"` // Present when type is "error".
 }
@@ -139,7 +139,7 @@ func (x *Connection) listen() {
 			continue
 		}
 
-		var mt ExchangeMessageType
+		var mt MessageType
 		if err = json.Unmarshal(b, &mt); err != nil {
 			x.onError(err)
 			return
@@ -169,21 +169,21 @@ func (x *Connection) listen() {
 
 }
 
-// ExchangeTicker is a Coinbase Exchange websocket ticker message.
-type ExchangeTicker struct {
-	ProductID   string `json:"product_id"`
-	BestBid     string `json:"best_bid"`
-	BestBidSize string `json:"best_bid_size"`
-	BestAsk     string `json:"best_ask"`
-	BestAskSize string `json:"best_ask_size"`
-	TradeID     int64  `json:"trade_id"`
-	LastSize    string `json:"last_size"`
-	Price       string `json:"price"`
+// Ticker is a Coinbase Exchange websocket ticker message.
+type Ticker struct {
+	Symbol  string `json:"product_id"`
+	BidPx   string `json:"best_bid"`
+	BidSize string `json:"best_bid_size"`
+	AskPx   string `json:"best_ask"`
+	AskSize string `json:"best_ask_size"`
+	LastQty string `json:"last_size"`
+	LastPx  string `json:"price"`
+	TradeID int64  `json:"trade_id"`
 }
 
 func parse(b []byte) (*mkt.Quote, *mkt.Trade, int64, error) {
 
-	var ticker ExchangeTicker
+	var ticker Ticker
 	if err := json.Unmarshal(b, &ticker); err != nil {
 		return nil, nil, 0, err
 	}
@@ -194,27 +194,27 @@ func parse(b []byte) (*mkt.Quote, *mkt.Trade, int64, error) {
 		trade mkt.Trade
 	)
 
-	quote.Symbol = ticker.ProductID
+	quote.Symbol = ticker.Symbol
 
-	if quote.BidPx, err = decimal.NewFromString(ticker.BestBid); err != nil {
+	if quote.BidPx, err = decimal.NewFromString(ticker.BidPx); err != nil {
 		return nil, nil, 0, fmt.Errorf("ticker: best_bid: %w", err)
 	}
-	if quote.BidSize, err = decimal.NewFromString(ticker.BestBidSize); err != nil {
+	if quote.BidSize, err = decimal.NewFromString(ticker.BidSize); err != nil {
 		return nil, nil, 0, fmt.Errorf("ticker: best_bid_size: %w", err)
 	}
-	if quote.AskPx, err = decimal.NewFromString(ticker.BestAsk); err != nil {
+	if quote.AskPx, err = decimal.NewFromString(ticker.AskPx); err != nil {
 		return nil, nil, 0, fmt.Errorf("ticker: best_ask: %w", err)
 	}
-	if quote.AskSize, err = decimal.NewFromString(ticker.BestAskSize); err != nil {
+	if quote.AskSize, err = decimal.NewFromString(ticker.AskSize); err != nil {
 		return nil, nil, 0, fmt.Errorf("ticker: best_ask_size: %w", err)
 	}
 
-	trade.Symbol = ticker.ProductID
+	trade.Symbol = ticker.Symbol
 
-	if trade.LastQty, err = decimal.NewFromString(ticker.LastSize); err != nil {
+	if trade.LastQty, err = decimal.NewFromString(ticker.LastQty); err != nil {
 		return nil, nil, 0, fmt.Errorf("ticker: last_size: %w", err)
 	}
-	if trade.LastPx, err = decimal.NewFromString(ticker.Price); err != nil {
+	if trade.LastPx, err = decimal.NewFromString(ticker.LastPx); err != nil {
 		return nil, nil, 0, fmt.Errorf("ticker: price: %w", err)
 	}
 
