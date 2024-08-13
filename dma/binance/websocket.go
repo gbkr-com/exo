@@ -4,7 +4,13 @@ package binance
 type Request struct {
 	Method string   `json:"method"` // "SUBSCRIBE" or "UNSUBSCRIBE".
 	Params []string `json:"params"` // Example "btcusdt@ticker".
-	ID     string   `json:"id"`     // Unique per request.
+	ID     int64    `json:"id"`     // Unique per request.
+}
+
+// Response to a non-query request.
+type Response struct {
+	Result *string `json:"result,omitempty"` // nil means success.
+	ID     int64   `json:"id"`               //
 }
 
 // Ticker is the message for an individual symbol ticker stream.
