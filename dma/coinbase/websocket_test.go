@@ -28,11 +28,12 @@ func TestWebsocket(t *testing.T) {
 		onError: func(e error) {
 			errors = append(errors, e)
 		},
-		limiter: utl.NewRateLimiter(WebSocketRequestsPerSecond, time.Second),
+		limiter:  utl.NewRateLimiter(WebSocketRequestsPerSecond, time.Second),
+		lifetime: 2 * time.Second,
 	}
 
 	conn.Open()
-	time.Sleep(2 * time.Second)
+	<-time.After(4 * time.Second)
 	conn.Close()
 
 	assert.Equal(t, 0, len(errors))

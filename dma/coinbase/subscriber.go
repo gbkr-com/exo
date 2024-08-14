@@ -2,6 +2,7 @@ package coinbase
 
 import (
 	"sync"
+	"time"
 
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
@@ -16,10 +17,18 @@ type Subscriber struct {
 	onError       func(error)
 	lock          sync.Mutex
 	limiter       *utl.RateLimiter
+	lifetime      time.Duration
 }
 
 // NewSubscriber returns a [*Subscriber] ready to use.
-func NewSubscriber(url string, onQuote func(*mkt.Quote), onTrade func(*mkt.Trade), onError func(error), limiter *utl.RateLimiter) *Subscriber {
+func NewSubscriber(
+	url string,
+	onQuote func(*mkt.Quote),
+	onTrade func(*mkt.Trade),
+	onError func(error),
+	limiter *utl.RateLimiter,
+	lifetime time.Duration,
+) *Subscriber {
 	return &Subscriber{
 		url:           url,
 		subscriptions: make(map[string]*Connection),
@@ -27,6 +36,7 @@ func NewSubscriber(url string, onQuote func(*mkt.Quote), onTrade func(*mkt.Trade
 		onTrade:       onTrade,
 		onError:       onError,
 		limiter:       limiter,
+		lifetime:      lifetime,
 	}
 }
 
@@ -45,12 +55,13 @@ func (x *Subscriber) Subscribe(symbol string) {
 	}
 
 	conn := &Connection{
-		url:     x.url,
-		symbol:  symbol,
-		onQuote: x.onQuote,
-		onTrade: x.onTrade,
-		onError: x.onError,
-		limiter: x.limiter,
+		url:      x.url,
+		symbol:   symbol,
+		onQuote:  x.onQuote,
+		onTrade:  x.onTrade,
+		onError:  x.onError,
+		limiter:  x.limiter,
+		lifetime: x.lifetime,
 	}
 	conn.Open()
 	x.subscriptions[symbol] = conn

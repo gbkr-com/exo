@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
@@ -15,12 +16,13 @@ import (
 
 // Connection wraps a Coinbase websocket connection.
 type Connection struct {
-	url     string
-	symbol  string
-	onQuote func(*mkt.Quote)
-	onTrade func(*mkt.Trade)
-	onError func(error)
-	limiter *utl.RateLimiter
+	url      string
+	symbol   string
+	onQuote  func(*mkt.Quote)
+	onTrade  func(*mkt.Trade)
+	onError  func(error)
+	limiter  *utl.RateLimiter
+	lifetime time.Duration
 
 	conn *websocket.Conn
 	ctx  context.Context
@@ -53,6 +55,7 @@ func (x *Connection) Open() {
 
 	x.exit.Add(1)
 	go x.listen()
+
 }
 
 // Close the connection.
@@ -62,11 +65,6 @@ func (x *Connection) Close() {
 
 	x.cxl()
 	x.exit.Wait()
-
-	b, _ := x.unsubscribeRequest()
-	x.conn.WriteMessage(websocket.TextMessage, b)
-
-	x.conn.Close()
 }
 
 func (x *Connection) connect() error {
@@ -118,14 +116,34 @@ type MessageType struct {
 
 func (x *Connection) listen() {
 
-	defer x.exit.Done()
+	var (
+		lastTradeID  int64
+		reconnecting bool
+	)
 
-	var lastTradeID int64
+	defer func() {
+
+		b, _ := x.unsubscribeRequest()
+		x.conn.WriteMessage(websocket.TextMessage, b)
+
+		x.conn.Close()
+		x.exit.Done()
+
+		if reconnecting {
+			x.Open()
+		}
+
+	}()
+
+	c := time.After(x.lifetime)
 
 	for {
 
 		select {
 		case <-x.ctx.Done():
+			return
+		case <-c:
+			reconnecting = true
 			return
 		default:
 		}
