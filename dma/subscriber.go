@@ -17,7 +17,7 @@ type Connectable interface {
 	Close()
 }
 
-// A ConnectionFactory manufacture a connection.
+// A ConnectionFactory manufactures a connection.
 type ConnectionFactory[T Connectable] func(
 	url string,
 	symbol string,
