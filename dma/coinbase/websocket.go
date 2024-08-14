@@ -14,6 +14,27 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// Factory is the [dma.ConnectionFactory] for a [Connection].
+func Factory(
+	url string,
+	symbol string,
+	onQuote func(*mkt.Quote),
+	onTrade func(*mkt.Trade),
+	onError func(error),
+	limiter *utl.RateLimiter,
+	lifetime time.Duration,
+) *Connection {
+	return &Connection{
+		url:      url,
+		symbol:   symbol,
+		onQuote:  onQuote,
+		onTrade:  onTrade,
+		onError:  onError,
+		limiter:  limiter,
+		lifetime: lifetime,
+	}
+}
+
 // Connection wraps a Coinbase websocket connection.
 type Connection struct {
 	url      string
