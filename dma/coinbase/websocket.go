@@ -177,12 +177,15 @@ func (x *Connection) listen() {
 			return
 		}
 
-		x.onQuote(quote)
+		if quote != nil {
+			x.onQuote(quote)
+		}
 
-		if tradeID != lastTradeID {
+		if trade != nil && tradeID != lastTradeID {
 			x.onTrade(trade)
 			lastTradeID = tradeID
 		}
+
 	}
 
 }
