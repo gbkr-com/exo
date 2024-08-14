@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gbkr-com/exo/dma/binance"
+	"github.com/gbkr-com/exo/dma/bitmex"
 	"github.com/gbkr-com/exo/dma/coinbase"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
@@ -12,7 +13,7 @@ import (
 
 // Connectable defines the implemented websocket connections.
 type Connectable interface {
-	*coinbase.Connection | *binance.Connection
+	*binance.Connection | *bitmex.Connection | *coinbase.Connection
 	Open()
 	Close()
 }
