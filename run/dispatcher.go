@@ -10,12 +10,6 @@ import (
 	"github.com/gbkr-com/utl"
 )
 
-type entry[T mkt.AnyOrder] struct {
-	order []T
-	quote *mkt.Quote
-	trade *mkt.Trade
-}
-
 // Dispatcher owns all orders and routes information to them.
 type Dispatcher[T mkt.AnyOrder] struct {
 	instructions chan T
@@ -136,6 +130,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 			others = slices.DeleteFunc(others, func(p *OrderProcess[T]) bool { return p.instructions.OrderID == def.OrderID })
 			if len(others) == 0 {
 				x.subscriber.Unsubscribe(def.Symbol)
+				delete(x.ordersBySymbol, def.Symbol)
 			} else {
 				x.ordersBySymbol[def.Symbol] = others
 			}
