@@ -15,7 +15,12 @@ func TestSubscriber(t *testing.T) {
 
 	t.Skip()
 
-	c := NewSubscriber(
+	var (
+		c Subscribable
+		b Subscribable
+	)
+
+	c = NewSubscriber(
 		coinbase.WebSocketURL,
 		coinbase.Factory,
 		func(x *mkt.Quote) { fmt.Println(x) },
@@ -25,7 +30,7 @@ func TestSubscriber(t *testing.T) {
 		time.Hour,
 	)
 
-	b := NewSubscriber(
+	b = NewSubscriber(
 		binance.WebSocketURL,
 		binance.Factory,
 		func(x *mkt.Quote) { fmt.Println(x) },

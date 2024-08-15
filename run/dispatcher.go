@@ -2,14 +2,16 @@ package run
 
 import (
 	"context"
+	"slices"
 	"sync"
 
+	"github.com/gbkr-com/exo/dma"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 )
 
 type entry[T mkt.AnyOrder] struct {
-	order T
+	order []T
 	quote *mkt.Quote
 	trade *mkt.Trade
 }
@@ -17,25 +19,28 @@ type entry[T mkt.AnyOrder] struct {
 // Dispatcher owns all orders and routes information to them.
 type Dispatcher[T mkt.AnyOrder] struct {
 	instructions chan T
+	subscriber   dma.Subscribable
 	quotes       *utl.ConflatingQueue[string, *mkt.Quote]
 	trades       *utl.ConflatingQueue[string, *mkt.Trade]
 
-	ordersByOrderID map[string]*entry[T]
-	ordersBySymbol  map[string][]*entry[T]
+	ordersByOrderID map[string]*OrderProcess[T]
+	ordersBySymbol  map[string][]*OrderProcess[T]
 }
 
 // NewDispatcher returns a [*Dispatcher] ready to use.
 func NewDispatcher[T mkt.AnyOrder](
 	instructions chan T,
+	subscriber dma.Subscribable,
 	quotes *utl.ConflatingQueue[string, *mkt.Quote],
 	trades *utl.ConflatingQueue[string, *mkt.Trade],
 ) *Dispatcher[T] {
 	dispatcher := &Dispatcher[T]{
 		instructions:    instructions,
+		subscriber:      subscriber,
 		quotes:          quotes,
 		trades:          trades,
-		ordersByOrderID: make(map[string]*entry[T]),
-		ordersBySymbol:  make(map[string][]*entry[T]),
+		ordersByOrderID: make(map[string]*OrderProcess[T]),
+		ordersBySymbol:  make(map[string][]*OrderProcess[T]),
 	}
 	return dispatcher
 }
@@ -43,10 +48,16 @@ func NewDispatcher[T mkt.AnyOrder](
 // Run dispatching until the given context is cancelled.
 func (x *Dispatcher[T]) Run(ctx context.Context, shutdown *sync.WaitGroup) {
 
+	var processes sync.WaitGroup
+
 	for {
 
 		select {
 		case <-ctx.Done():
+			//
+			// The processes all see the same event through the context.
+			//
+			processes.Wait()
 			shutdown.Done()
 			return
 
@@ -63,68 +74,106 @@ func (x *Dispatcher[T]) Run(ctx context.Context, shutdown *sync.WaitGroup) {
 			}
 
 		case order := <-x.instructions:
-			x.handleOrder(order)
+			x.handleOrder(ctx, &processes, order)
 		}
 
 	}
 
 }
 
-func (x *Dispatcher[T]) handleOrder(order T) {
+func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGroup, order T) {
 
 	def := order.Definition()
-	_, ok := x.ordersByOrderID[def.OrderID]
+	process, ok := x.ordersByOrderID[def.OrderID]
 
 	if !ok {
-		upd := &entry[T]{order: order}
-		x.ordersByOrderID[def.OrderID] = upd
-		others, ok := x.ordersBySymbol[def.Symbol]
-		if !ok {
-			x.ordersBySymbol[def.Symbol] = []*entry[T]{upd}
-			// TODO subscribe
+		//
+		// Ensure this is correct.
+		//
+		if def.MsgType != mkt.OrderNew {
+			// TODO notification
 			return
 		}
-		x.ordersBySymbol[def.Symbol] = append(others, upd)
+		//
+		// Make a new process for the order.
+		//
+		process = &OrderProcess[T]{
+			queue:        CompositeConflatingQueueFactory[T](),
+			instructions: *def,
+		}
+		x.ordersByOrderID[def.OrderID] = process
+		shutdown.Add(1)
+		go process.Run(ctx, shutdown)
+		//
+		// Cross reference by Symbol.
+		//
+		others, ok := x.ordersBySymbol[def.Symbol]
+		if !ok {
+			//
+			// Subscribe on first appearance.
+			//
+			x.ordersBySymbol[def.Symbol] = []*OrderProcess[T]{process}
+			x.subscriber.Subscribe(def.Symbol)
+			return
+		}
+		x.ordersBySymbol[def.Symbol] = append(others, process)
 		return
 	}
 
-	// TODO
+	if def.MsgType == mkt.OrderNew {
+		// TODO notification
+		return
+	}
+	if def.MsgType == mkt.OrderCancel {
+		delete(x.ordersByOrderID, def.OrderID)
+		others, ok := x.ordersBySymbol[def.Symbol]
+		//
+		// Unsubscribe here, not in the order process.
+		//
+		if !ok {
+			x.subscriber.Unsubscribe(def.Symbol)
+		} else {
+			others = slices.DeleteFunc(others, func(p *OrderProcess[T]) bool { return p.instructions.OrderID == def.OrderID })
+			if len(others) == 0 {
+				x.subscriber.Unsubscribe(def.Symbol)
+			} else {
+				x.ordersBySymbol[def.Symbol] = others
+			}
+		}
+	}
+	//
+	// Simply push the new order instructions to the queue.
+	//
+	process.queue.Push(&Composite[T]{Instructions: []T{order}})
 
 }
 
 func (x *Dispatcher[T]) handleQuote(quote *mkt.Quote) {
 
-	entries, ok := x.ordersBySymbol[quote.Symbol]
+	processes, ok := x.ordersBySymbol[quote.Symbol]
 
 	if !ok {
 		return
 	}
 
-	for _, e := range entries {
-		e.quote = quote
+	for _, p := range processes {
+		composite := &Composite[T]{Quote: quote}
+		p.queue.Push(composite)
 	}
 
 }
 
 func (x *Dispatcher[T]) handleTrade(trade *mkt.Trade) {
 
-	entries, ok := x.ordersBySymbol[trade.Symbol]
+	processes, ok := x.ordersBySymbol[trade.Symbol]
 
 	if !ok {
 		return
 	}
 
-	for _, e := range entries {
-		if e.trade == nil {
-			e.trade = trade
-			continue
-		}
-		if trade.TradeVolume.IsZero() {
-			e.trade.Accumulate(trade, 8) // TODO precision
-			continue
-		}
-		t := &mkt.Trade{Symbol: trade.Symbol, LastQty: trade.TradeVolume, LastPx: trade.AvgPx}
-		e.trade.Accumulate(t, 8) // TODO precision
+	for _, p := range processes {
+		composite := &Composite[T]{Trade: trade}
+		p.queue.Push(composite)
 	}
 
 }

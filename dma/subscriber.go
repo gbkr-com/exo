@@ -103,3 +103,9 @@ func (x *Subscriber[T]) Unsubscribe(symbol string) {
 	delete(x.subscriptions, symbol)
 
 }
+
+// Subscribable interface to abstract from any implementation.
+type Subscribable interface {
+	Subscribe(string)
+	Unsubscribe(string)
+}

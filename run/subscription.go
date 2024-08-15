@@ -34,6 +34,6 @@ func ConflateTrade(existing *mkt.Trade, latest *mkt.Trade) *mkt.Trade {
 		return latest
 	}
 
-	existing.Accumulate(latest, 8) // TODO precision
+	existing.Aggregate(latest, 8) // TODO precision
 	return existing
 }

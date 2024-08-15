@@ -3,7 +3,7 @@ module github.com/gbkr-com/exo
 go 1.22.1
 
 require (
-	github.com/gbkr-com/mkt v0.3.1
+	github.com/gbkr-com/mkt v0.3.3
 	github.com/gbkr-com/utl v0.3.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/shopspring/decimal v1.3.1

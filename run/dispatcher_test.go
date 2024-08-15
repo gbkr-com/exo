@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -9,30 +10,59 @@ import (
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestDispatcherRun(*testing.T) {
+type mockSubscriber struct {
+	subs []string
+}
+
+func (x *mockSubscriber) Subscribe(symbol string) {
+	x.subs = append(x.subs, symbol)
+}
+
+func (x *mockSubscriber) Unsubscribe(symbol string) {
+	x.subs = slices.DeleteFunc(x.subs, func(s string) bool { return s == symbol })
+}
+
+func TestDispatcherRun(t *testing.T) {
+
+	//
+	// Set up.
+	//
 
 	ctx, cxl := context.WithCancel(context.Background())
 	var shutdown sync.WaitGroup
 
 	instructions := make(chan *mkt.Order, 1)
 
-	quoteQueue := utl.NewConflatingQueue[string, *mkt.Quote](mkt.QuoteKey)
+	quoteQueue := utl.NewConflatingQueue(mkt.QuoteKey)
 	onQuote := SubscriberQuoteQueueConnector(quoteQueue)
-	tradeQueue := utl.NewConflatingQueue[string, *mkt.Trade](mkt.TradeKey, utl.WithConflateOption[string, *mkt.Trade](ConflateTrade))
+	tradeQueue := utl.NewConflatingQueue(mkt.TradeKey, utl.WithConflateOption[string](ConflateTrade))
 	onTrade := SubscriberTradeQueueConnector(tradeQueue)
 
-	dispatcher := NewDispatcher(instructions, quoteQueue, tradeQueue)
+	subscriber := &mockSubscriber{}
+
+	dispatcher := NewDispatcher(instructions, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)
 
+	//
+	// Testing.
+	//
+
+	orderID := mkt.NewOrderID()
+
 	instructions <- &mkt.Order{
-		OrderID: mkt.NewOrderID(),
+		MsgType: mkt.OrderNew,
+		OrderID: orderID,
 		Side:    mkt.Buy,
 		Symbol:  "A",
 	}
+
+	<-time.After(time.Second)
+	assert.Equal(t, 1, len(subscriber.subs))
 
 	onQuote(
 		&mkt.Quote{
@@ -51,7 +81,17 @@ func TestDispatcherRun(*testing.T) {
 		},
 	)
 
-	<-time.After(3 * time.Second)
+	instructions <- &mkt.Order{
+		MsgType: mkt.OrderCancel,
+		OrderID: orderID,
+		Side:    mkt.Buy,
+		Symbol:  "A",
+	}
+
+	<-time.After(time.Second)
+	assert.Equal(t, 0, len(subscriber.subs))
+
+	<-time.After(time.Second)
 	cxl()
 	shutdown.Wait()
 
