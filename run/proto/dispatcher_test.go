@@ -1,4 +1,4 @@
-package run
+package proto
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gbkr-com/exo/run"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/shopspring/decimal"
@@ -39,13 +40,13 @@ func TestDispatcherRun(t *testing.T) {
 	instructions := make(chan *mkt.Order, 1)
 
 	quoteQueue := utl.NewConflatingQueue(mkt.QuoteKey)
-	onQuote := SubscriberQuoteQueueConnector(quoteQueue)
-	tradeQueue := utl.NewConflatingQueue(mkt.TradeKey, utl.WithConflateOption[string](ConflateTrade))
-	onTrade := SubscriberTradeQueueConnector(tradeQueue)
+	onQuote := run.SubscriberQuoteQueueConnector(quoteQueue)
+	tradeQueue := utl.NewConflatingQueue(mkt.TradeKey, utl.WithConflateOption[string](run.ConflateTrade))
+	onTrade := run.SubscriberTradeQueueConnector(tradeQueue)
 
 	subscriber := &mockSubscriber{}
 
-	dispatcher := NewDispatcher(instructions, subscriber, quoteQueue, tradeQueue)
+	dispatcher := run.NewDispatcher(instructions, NewOrderProcess, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)
