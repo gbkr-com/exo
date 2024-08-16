@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
@@ -14,15 +13,18 @@ import (
 )
 
 type mockSubscriber struct {
-	subs []string
+	subs    []string
+	working sync.WaitGroup
 }
 
 func (x *mockSubscriber) Subscribe(symbol string) {
 	x.subs = append(x.subs, symbol)
+	x.working.Done()
 }
 
 func (x *mockSubscriber) Unsubscribe(symbol string) {
 	x.subs = slices.DeleteFunc(x.subs, func(s string) bool { return s == symbol })
+	x.working.Done()
 }
 
 func TestDispatcherRun(t *testing.T) {
@@ -54,6 +56,8 @@ func TestDispatcherRun(t *testing.T) {
 
 	orderID := mkt.NewOrderID()
 
+	subscriber.working.Add(1)
+
 	instructions <- &mkt.Order{
 		MsgType: mkt.OrderNew,
 		OrderID: orderID,
@@ -61,7 +65,7 @@ func TestDispatcherRun(t *testing.T) {
 		Symbol:  "A",
 	}
 
-	<-time.After(time.Second)
+	subscriber.working.Wait()
 	assert.Equal(t, 1, len(subscriber.subs))
 
 	onQuote(
@@ -81,6 +85,8 @@ func TestDispatcherRun(t *testing.T) {
 		},
 	)
 
+	subscriber.working.Add(1)
+
 	instructions <- &mkt.Order{
 		MsgType: mkt.OrderCancel,
 		OrderID: orderID,
@@ -88,10 +94,9 @@ func TestDispatcherRun(t *testing.T) {
 		Symbol:  "A",
 	}
 
-	<-time.After(time.Second)
+	subscriber.working.Wait()
 	assert.Equal(t, 0, len(subscriber.subs))
 
-	<-time.After(time.Second)
 	cxl()
 	shutdown.Wait()
 

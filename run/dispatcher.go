@@ -19,6 +19,7 @@ type Dispatcher[T mkt.AnyOrder] struct {
 
 	ordersByOrderID map[string]*OrderProcess[T]
 	ordersBySymbol  map[string][]*OrderProcess[T]
+	completedOrders chan string
 }
 
 // NewDispatcher returns a [*Dispatcher] ready to use.
@@ -35,11 +36,13 @@ func NewDispatcher[T mkt.AnyOrder](
 		trades:          trades,
 		ordersByOrderID: make(map[string]*OrderProcess[T]),
 		ordersBySymbol:  make(map[string][]*OrderProcess[T]),
+		completedOrders: make(chan string, 1024),
 	}
 	return dispatcher
 }
 
-// Run dispatching until the given context is cancelled.
+// Run dispatching until the given context is cancelled. That cancellation is
+// a signal that dispatching must stop, not that orders are cancelled.
 func (x *Dispatcher[T]) Run(ctx context.Context, shutdown *sync.WaitGroup) {
 
 	var processes sync.WaitGroup
@@ -69,6 +72,9 @@ func (x *Dispatcher[T]) Run(ctx context.Context, shutdown *sync.WaitGroup) {
 
 		case order := <-x.instructions:
 			x.handleOrder(ctx, &processes, order)
+
+		case orderID := <-x.completedOrders:
+			x.removeOrder(orderID)
 		}
 
 	}
@@ -82,7 +88,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 
 	if !ok {
 		//
-		// Ensure this is correct.
+		// A new order - ensure it presents as such.
 		//
 		if def.MsgType != mkt.OrderNew {
 			// TODO notification
@@ -92,8 +98,9 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		// Make a new process for the order.
 		//
 		process = &OrderProcess[T]{
-			queue:        CompositeConflatingQueueFactory[T](),
-			instructions: *def,
+			queue:     NewCompositeConflatingQueue[T](),
+			order:     order,
+			completed: x.completedOrders,
 		}
 		x.ordersByOrderID[def.OrderID] = process
 		shutdown.Add(1)
@@ -114,32 +121,55 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		return
 	}
 
+	//
+	// An existing order, but check first.
+	//
 	if def.MsgType == mkt.OrderNew {
 		// TODO notification
 		return
 	}
+	pdef := process.order.Definition()
+	if pdef.Side != def.Side || pdef.Symbol != def.Symbol {
+		// TODO notification
+		return
+	}
+
 	if def.MsgType == mkt.OrderCancel {
-		delete(x.ordersByOrderID, def.OrderID)
-		others, ok := x.ordersBySymbol[def.Symbol]
-		//
-		// Unsubscribe here, not in the order process.
-		//
-		if !ok {
-			x.subscriber.Unsubscribe(def.Symbol)
-		} else {
-			others = slices.DeleteFunc(others, func(p *OrderProcess[T]) bool { return p.instructions.OrderID == def.OrderID })
-			if len(others) == 0 {
-				x.subscriber.Unsubscribe(def.Symbol)
-				delete(x.ordersBySymbol, def.Symbol)
-			} else {
-				x.ordersBySymbol[def.Symbol] = others
-			}
-		}
+		x.removeOrder(def.OrderID)
 	}
 	//
 	// Simply push the new order instructions to the queue.
 	//
 	process.queue.Push(&Composite[T]{Instructions: []T{order}})
+
+}
+
+func (x *Dispatcher[T]) removeOrder(orderID string) {
+
+	process, ok := x.ordersByOrderID[orderID]
+	if !ok {
+		return
+	}
+	symbol := process.order.Definition().Symbol
+
+	delete(x.ordersByOrderID, orderID)
+
+	//
+	// Unsubscribe.
+	//
+	others, ok := x.ordersBySymbol[symbol]
+	if !ok {
+		x.subscriber.Unsubscribe(symbol)
+		return
+	}
+	others = slices.DeleteFunc(others, func(p *OrderProcess[T]) bool { return p.order.Definition().OrderID == orderID })
+	if len(others) == 0 {
+		x.subscriber.Unsubscribe(symbol)
+		delete(x.ordersBySymbol, symbol)
+		return
+	}
+
+	x.ordersBySymbol[symbol] = others
 
 }
 
