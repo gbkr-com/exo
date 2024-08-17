@@ -19,5 +19,7 @@ build:
 run-example: export URL = wss://ws-feed.exchange.coinbase.com
 run-example: export RATE = 10
 run-example: export HTTP = :8080
+run-example: export REDIS = localhost:6379
+run-example: export KEY = :hash:orders
 run-example:
 	@cd cmd/example && ./example

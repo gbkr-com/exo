@@ -18,14 +18,25 @@ import (
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 
-	url, rate, address := configure()
+	url, rate, address, redisAddress, redisKey := configure()
 
 	ctx, cxl := context.WithCancel(context.Background())
 	var shutdown sync.WaitGroup
+
+	//
+	// Delegates.
+	//
+	rdb := redis.NewClient(
+		&redis.Options{
+			Addr: redisAddress,
+		},
+	)
+	factory := &delegateFactory{rdb: rdb, key: redisKey}
 
 	instructions := make(chan *mkt.Order, 1)
 
@@ -44,7 +55,7 @@ func main() {
 		time.Hour,
 	)
 
-	dispatcher := run.NewDispatcher(instructions, &delegateFactory{}, run.ConflateComposite, subscriber, quoteQueue, tradeQueue)
+	dispatcher := run.NewDispatcher(instructions, factory, run.ConflateComposite, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)
@@ -70,7 +81,7 @@ func main() {
 
 }
 
-func configure() (url string, rate int, address string) {
+func configure() (url string, rate int, address string, redisAddress string, redisKey string) {
 	url = os.Getenv("URL")
 	if url == "" {
 		os.Stderr.WriteString("missing URL")
@@ -90,6 +101,16 @@ func configure() (url string, rate int, address string) {
 	address = os.Getenv("HTTP")
 	if address == "" {
 		os.Stderr.WriteString("missing HTTP")
+		os.Exit(1)
+	}
+	redisAddress = os.Getenv("REDIS")
+	if address == "" {
+		os.Stderr.WriteString("missing REDIS")
+		os.Exit(1)
+	}
+	redisKey = os.Getenv("KEY")
+	if address == "" {
+		os.Stderr.WriteString("missing KEY")
 		os.Exit(1)
 	}
 	return
