@@ -61,7 +61,8 @@ func main() {
 	go dispatcher.Run(ctx, &shutdown)
 
 	handler := &Handler{
-		orders:       map[string]*mkt.Order{},
+		rdb:          rdb,
+		key:          redisKey,
 		instructions: instructions,
 	}
 	gin.SetMode(gin.ReleaseMode)
