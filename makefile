@@ -18,6 +18,6 @@ build:
 .PHONY: run-example
 run-example: export URL = wss://ws-feed.exchange.coinbase.com
 run-example: export RATE = 10
-run-example: export SYMBOL = ETH-USD
+run-example: export HTTP = :8080
 run-example:
 	@cd cmd/example && ./example
