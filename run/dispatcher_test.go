@@ -1,12 +1,12 @@
-package proto
+package run
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
 
-	"github.com/gbkr-com/exo/run"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/shopspring/decimal"
@@ -28,6 +28,28 @@ func (x *mockSubscriber) Unsubscribe(symbol string) {
 	x.working.Done()
 }
 
+type mockActor[T mkt.AnyOrder] struct {
+}
+
+func (x *mockActor[T]) Action(upd *Composite[T]) bool {
+	if upd == nil {
+		return false
+	}
+	if upd.Quote != nil {
+		fmt.Println(upd.Quote)
+	}
+	if upd.Trade != nil {
+		fmt.Println(upd.Trade)
+	}
+	return false
+}
+
+func (x *mockActor[T]) CleanUp() {}
+
+type mockActorFactory[T mkt.AnyOrder] struct{}
+
+func (x *mockActorFactory[T]) New(T) Delegate[T] { return &mockActor[T]{} }
+
 func TestDispatcherRun(t *testing.T) {
 
 	//
@@ -40,13 +62,13 @@ func TestDispatcherRun(t *testing.T) {
 	instructions := make(chan *mkt.Order, 1)
 
 	quoteQueue := utl.NewConflatingQueue(mkt.QuoteKey)
-	onQuote := run.SubscriberQuoteQueueConnector(quoteQueue)
-	tradeQueue := utl.NewConflatingQueue(mkt.TradeKey, utl.WithConflateOption[string](run.ConflateTrade))
-	onTrade := run.SubscriberTradeQueueConnector(tradeQueue)
+	onQuote := SubscriberQuoteQueueConnector(quoteQueue)
+	tradeQueue := utl.NewConflatingQueue(mkt.TradeKey, utl.WithConflateOption[string](ConflateTrade))
+	onTrade := SubscriberTradeQueueConnector(tradeQueue)
 
 	subscriber := &mockSubscriber{}
 
-	dispatcher := run.NewDispatcher(instructions, NewOrderProcess, subscriber, quoteQueue, tradeQueue)
+	dispatcher := NewDispatcher(instructions, &mockActorFactory[*mkt.Order]{}, ConflateComposite, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)

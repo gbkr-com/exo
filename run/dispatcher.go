@@ -13,20 +13,22 @@ import (
 // Dispatcher owns all orders and routes information to them.
 type Dispatcher[T mkt.AnyOrder] struct {
 	instructions chan T
-	factory      OrderProcessorFactory[T]
+	factory      DelegateFactory[T]
+	conflator    CompositeConflator[T]
 	subscriber   dma.Subscribable
 	quotes       *utl.ConflatingQueue[string, *mkt.Quote]
 	trades       *utl.ConflatingQueue[string, *mkt.Trade]
 
-	ordersByOrderID map[string]OrderProcessor[T]
-	ordersBySymbol  map[string][]OrderProcessor[T]
+	ordersByOrderID map[string]*OrderProcess[T]
+	ordersBySymbol  map[string][]*OrderProcess[T]
 	completedOrders chan string
 }
 
 // NewDispatcher returns a [*Dispatcher] ready to use.
 func NewDispatcher[T mkt.AnyOrder](
 	instructions chan T,
-	factory OrderProcessorFactory[T],
+	factory DelegateFactory[T],
+	conflator CompositeConflator[T],
 	subscriber dma.Subscribable,
 	quotes *utl.ConflatingQueue[string, *mkt.Quote],
 	trades *utl.ConflatingQueue[string, *mkt.Trade],
@@ -34,11 +36,12 @@ func NewDispatcher[T mkt.AnyOrder](
 	dispatcher := &Dispatcher[T]{
 		instructions:    instructions,
 		factory:         factory,
+		conflator:       conflator,
 		subscriber:      subscriber,
 		quotes:          quotes,
 		trades:          trades,
-		ordersByOrderID: make(map[string]OrderProcessor[T]),
-		ordersBySymbol:  make(map[string][]OrderProcessor[T]),
+		ordersByOrderID: make(map[string]*OrderProcess[T]),
+		ordersBySymbol:  make(map[string][]*OrderProcess[T]),
 		completedOrders: make(chan string, 1024), // TODO configure
 	}
 	return dispatcher
@@ -100,7 +103,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		//
 		// Make a new process for the order.
 		//
-		process = x.factory(order)
+		process = NewOrderProcess(order, x.factory, x.conflator)
 		x.ordersByOrderID[def.OrderID] = process
 		shutdown.Add(1)
 		go process.Run(ctx, shutdown, x.completedOrders)
@@ -112,7 +115,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 			//
 			// Subscribe on first appearance.
 			//
-			x.ordersBySymbol[def.Symbol] = []OrderProcessor[T]{process}
+			x.ordersBySymbol[def.Symbol] = []*OrderProcess[T]{process}
 			x.subscriber.Subscribe(def.Symbol)
 			return
 		}
@@ -121,7 +124,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 	}
 
 	//
-	// An existing order, but check first.
+	// An existing order, but check it matches first.
 	//
 	if def.MsgType == mkt.OrderNew {
 		// TODO notification
@@ -161,7 +164,7 @@ func (x *Dispatcher[T]) removeOrder(orderID string) {
 		x.subscriber.Unsubscribe(symbol)
 		return
 	}
-	others = slices.DeleteFunc(others, func(p OrderProcessor[T]) bool { return p.Definition().OrderID == orderID })
+	others = slices.DeleteFunc(others, func(p *OrderProcess[T]) bool { return p.Definition().OrderID == orderID })
 	if len(others) == 0 {
 		x.subscriber.Unsubscribe(symbol)
 		delete(x.ordersBySymbol, symbol)
