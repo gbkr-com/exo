@@ -25,7 +25,7 @@ func TestHTTP(t *testing.T) {
 	h.Bind(router)
 
 	//
-	// Test.
+	// POST.
 	//
 	body := `{
 		"side":"BUY",
@@ -50,6 +50,9 @@ func TestHTTP(t *testing.T) {
 	order := h.orders[orderID]
 	assert.NotNil(t, order)
 
+	//
+	// DELETE.
+	//
 	w = httptest.NewRecorder()
 	req, err = http.NewRequest(http.MethodDelete, basePath+"/"+orderID, nil)
 	assert.Nil(t, err)
