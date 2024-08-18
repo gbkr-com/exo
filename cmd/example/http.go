@@ -9,6 +9,7 @@ import (
 	"github.com/gbkr-com/mkt"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 type Handler struct {
 	rdb          *redis.Client
 	key          string
-	instructions chan *mkt.Order
+	instructions chan *Order
 }
 
 // Bind this [Handler] to [*gin.Engine].
@@ -34,8 +35,9 @@ func (x *Handler) postOrder(ctx *gin.Context) {
 	// Body.
 	//
 	body := struct {
-		Side   string `json:"side"`
-		Symbol string `json:"symbol"`
+		Side     string `json:"side"`
+		Symbol   string `json:"symbol"`
+		OrderQty string `json:"orderQty"`
 	}{}
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -50,15 +52,31 @@ func (x *Handler) postOrder(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Unrecognised side"})
 		return
 	}
+	if body.OrderQty == "" {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing orderQty"})
+		return
+	}
+	orderQty, err := decimal.NewFromString(body.OrderQty)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "orderQty"})
+		return
+	}
+	if !orderQty.IsPositive() {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "orderQty"})
+		return
+	}
 	//
 	// Forward.
 	//
 	orderID := mkt.NewOrderID()
-	order := &mkt.Order{
-		MsgType: mkt.OrderNew,
-		OrderID: orderID,
-		Side:    side,
-		Symbol:  body.Symbol,
+	order := &Order{
+		Order: mkt.Order{
+			MsgType: mkt.OrderNew,
+			OrderID: orderID,
+			Side:    side,
+			Symbol:  body.Symbol,
+		},
+		OrderQty: &orderQty,
 	}
 	x.instructions <- order
 
@@ -107,16 +125,16 @@ func (x *Handler) deleteOrder(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	var order mkt.Order
-	if err := json.Unmarshal([]byte(str), &order); err != nil {
+	var memo DelegateMemo
+	if err := json.Unmarshal([]byte(str), &memo); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 	//
 	// Forward.
 	//
-	order.MsgType = mkt.OrderCancel
-	x.instructions <- &order
+	memo.Instructions.MsgType = mkt.OrderCancel
+	x.instructions <- &memo.Instructions.Order
 	x.rdb.HDel(context.Background(), x.key, uri.OrderID)
 
 	ctx.JSON(http.StatusAccepted, gin.H{"orderID": uri.OrderID})

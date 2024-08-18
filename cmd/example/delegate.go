@@ -8,51 +8,72 @@ import (
 	"github.com/gbkr-com/exo/run"
 	"github.com/gbkr-com/mkt"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 )
 
-type delegateFactory struct {
+// DelegateMemo is the data that is persisted for every order.
+type DelegateMemo struct {
+	Instructions struct {
+		Order
+	} `json:"instructions"`
+	State struct {
+		CumQty decimal.Decimal `json:"cumQty"`
+	}
+}
+
+// DelegateFactory makes a [Delegate] for each new order.
+type DelegateFactory struct {
 	rdb *redis.Client
 	key string
 }
 
-func (x *delegateFactory) New(order *mkt.Order) run.Delegate[*mkt.Order] {
+// New is called by [run.Dispatcher] when creating the [run.OrderProcess].
+func (x *DelegateFactory) New(order *Order) run.Delegate[*Order] {
 
 	if order == nil {
 		return nil
 	}
-	b, err := json.Marshal(order)
+
+	//
+	// Persist the delegate when it is created.
+	//
+	var memo DelegateMemo
+	memo.Instructions.Order = *order
+	b, err := json.Marshal(memo)
 	if err != nil {
 		// TODO notify
 		return nil
 	}
 	x.rdb.HSet(context.Background(), x.key, order.OrderID, string(b))
 
-	return &delegate{
-		rdb:   x.rdb,
-		key:   x.key,
-		order: order,
+	return &Delegate{
+		rdb:  x.rdb,
+		key:  x.key,
+		memo: &memo,
 	}
 }
 
-type delegate struct {
-	rdb   *redis.Client
-	key   string
-	order *mkt.Order
+// Delegate is the order handling logic.
+type Delegate struct {
+	rdb  *redis.Client
+	key  string
+	memo *DelegateMemo
 }
 
-func (x *delegate) Action(upd *run.Composite[*mkt.Order]) bool {
+// Action is called by the [run.OrderProcess] for each [run.Composite] update.
+func (x *Delegate) Action(upd *run.Composite[*Order]) bool {
 
 	if upd == nil {
 		return false
 	}
 
 	if len(upd.Instructions) > 0 {
+		//
+		// Scan for cancellation.
+		//
 		for _, ins := range upd.Instructions {
 			if ins.MsgType == mkt.OrderCancel {
-				//
-				// Redis.
-				//
-				x.rdb.HDel(context.Background(), x.key, x.order.OrderID)
+				x.removeFromRedis()
 				return true
 			}
 		}
@@ -60,11 +81,34 @@ func (x *delegate) Action(upd *run.Composite[*mkt.Order]) bool {
 
 	if upd.Quote != nil {
 
-		px, size := upd.Quote.Near(x.order.Side)
-		fmt.Println(upd.Quote.Symbol, size, px)
+		leavesQty := x.memo.Instructions.OrderQty.Sub(x.memo.State.CumQty)
+
+		px, size := upd.Quote.Far(x.memo.Instructions.Side)
+
+		trade := decimal.Min(size, leavesQty)
+		fmt.Println("trade", trade.String(), "@", px.String())
+
+		leavesQty = leavesQty.Sub(trade)
+		if leavesQty.IsZero() {
+			fmt.Println("done")
+			x.removeFromRedis()
+			return true
+		}
+		x.memo.State.CumQty = x.memo.State.CumQty.Add(trade)
+		x.saveToRedis()
 
 	}
 	return false
 }
 
-func (x *delegate) CleanUp() {}
+// CleanUp is called by [run.OrderProcess] when [run.Dispatcher] is terminating.
+func (x *Delegate) CleanUp() {}
+
+func (x *Delegate) saveToRedis() {
+	b, _ := json.Marshal(x.memo)
+	x.rdb.HSet(context.Background(), x.key, x.memo.Instructions.OrderID, string(b))
+}
+
+func (x *Delegate) removeFromRedis() {
+	x.rdb.HDel(context.Background(), x.key, x.memo.Instructions.OrderID)
+}

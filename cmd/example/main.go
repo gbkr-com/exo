@@ -36,9 +36,9 @@ func main() {
 			Addr: redisAddress,
 		},
 	)
-	factory := &delegateFactory{rdb: rdb, key: redisKey}
+	factory := &DelegateFactory{rdb: rdb, key: redisKey}
 
-	instructions := make(chan *mkt.Order, 1)
+	instructions := make(chan *Order, 1)
 	reports := make(chan *mkt.Report, 1)
 
 	// Market data.
@@ -56,7 +56,7 @@ func main() {
 		time.Hour,
 	)
 
-	dispatcher := run.NewDispatcher(
+	dispatcher := run.NewDispatcher[*Order](
 		instructions,
 		factory,
 		run.ConflateComposite,

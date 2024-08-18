@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/gbkr-com/mkt"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,7 @@ func TestHTTP(t *testing.T) {
 	h := &Handler{
 		rdb:          rdb,
 		key:          ":hash:orders",
-		instructions: make(chan *mkt.Order, 16),
+		instructions: make(chan *Order, 16),
 	}
 	h.Bind(router)
 
@@ -39,7 +38,8 @@ func TestHTTP(t *testing.T) {
 	//
 	body := `{
 		"side":"BUY",
-		"symbol":"XRP-USD"
+		"symbol":"XRP-USD",
+		"orderQty":"10"
 	}
 	`
 	w := httptest.NewRecorder()
