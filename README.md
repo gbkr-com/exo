@@ -4,21 +4,21 @@
 
 ## Purpose
 
-`exo` is an exoskeleton for automated execution, written in Go. It is intended to demonstrate some key concepts in designing a process to manage many simultaneous executions. It does not show how to execute, let alone execute in a safe and efficient manner: that is another story.
+`exo` is an exoskeleton for automated execution, written in Go. It is intended to demonstrate some key concepts in designing a process to manage many simultaneous executions. It does not show how to execute, let alone execute in a safe and efficient manner: that is another conversation.
 
-`exo` is written in Go for a number of reasons. One is the natural way Go supports concurrency. Another is, having done this in real operations, it is more than capable of supporting real time trading and, at the same time, the language and compilation speed make it easy for someone with a Python background to work on the code.
+`exo` is written in Go for a number of reasons. One is the natural way Go supports concurrency. Another is, having done this IRL, Go is more than capable of supporting real time trading and, at the same time, the language and compilation speed make it easy for someone with a Python background to work on the code.
 
 ## Concepts
 
 ### Operational
 
-Real time execution needs real time data. In many such cases the arrival rate of market data, even Level I (quote) data, can outstrip the ability to send and persist orders for the counterparty. One solution is 'co-location' and the dedication to handle _every_ tick. Another, more economic, approach is 'conflation'.
+Real time execution needs real time data. In many such cases the arrival rate of market data, even Level I (quote) data, can outstrip the speed of sending and persisting orders for the counterparty. One solution is 'co-location' and the dedication to handle ***every*** tick. Another, more economic, approach is 'conflation'.
 
 > the merging of two or more sets of information ... into one
 
 `exo` uses conflation in two ways. One, `exo` fans-out ticker data from a single subscriber to the subscribing delegates, via a dispatcher. When that dispatcher is busy, ticker data is conflated until it can be presented for dispatch. That is conflation of the same data type.
 
-The second way is when quote, trade, instruction and fill information is to be presented to a delegate. One approach is to treat all these independently. However, delegates can then become frantic in making decisions they regret because they did not have a full picture before each decision. `exo` calms this behaviour by conflating all these updates into one package for decision making.
+The second way is when quote, trade, instruction and fill information is to be presented to a delegate. One approach is to treat all these independently. However, delegates can then become frantic, making decisions they regret because they did not have a full picture before each decision. `exo` calms this behaviour by conflating all these updates into one package for decision making.
 
 In keeping with standard practice, the side and symbol of an order are immutable after creation. With the order ID assigned by `exo`, they form the fundamental identity of an order.
 
@@ -31,7 +31,7 @@ See:
 - [OrderProcess](run/order-process.go)
 - [Delegate](run/delegate.go)
 
-The central component is `Dispatcher`. When it receives a new order, it creates a goroutine for an `OrderProcess` to work on that order. An `OrderProcess` is simply a link to a `Delegate` which does the real work on the order.
+The `Dispatcher` receives orders and market data. For each new order it creates an `OrderProcess`, and launches a goroutine to manage work on that order. The `OrderProcess` has no order handling logic: it passes all updates to its associated `Delegate` to do that work.
 
 The `Dispatcher` and `OrderProcess` are the 'container' surrounding a delegate. Both do not need to know much about an order apart from its identity. Both use Go generics so that the basic `mkt.Order` can be extended without affecting how `Dispatcher` and `OrderProcess` work.
 
@@ -43,4 +43,4 @@ The number of steps from data arrival to a delegate is minimal. For market data 
 
 #### Persistence, logging ...
 
-`exo` does not prescribe any of these. A `Delegate` is free to make those choices as it is `outside` of the container code.
+`exo` does not prescribe any of these. A `Delegate` is free to make those choices as it is 'outside' of the container code.
