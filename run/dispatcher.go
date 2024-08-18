@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -19,6 +20,7 @@ type Dispatcher[T mkt.AnyOrder] struct {
 	subscriber   dma.Subscribable
 	quotes       *utl.ConflatingQueue[string, *mkt.Quote]
 	trades       *utl.ConflatingQueue[string, *mkt.Trade]
+	onError      func(string, error)
 
 	ordersByOrderID map[string]*OrderProcess[T]
 	ordersBySymbol  map[string][]*OrderProcess[T]
@@ -34,6 +36,7 @@ func NewDispatcher[T mkt.AnyOrder](
 	subscriber dma.Subscribable,
 	quotes *utl.ConflatingQueue[string, *mkt.Quote],
 	trades *utl.ConflatingQueue[string, *mkt.Trade],
+	onError func(string, error),
 ) *Dispatcher[T] {
 	dispatcher := &Dispatcher[T]{
 		instructions:    instructions,
@@ -46,6 +49,7 @@ func NewDispatcher[T mkt.AnyOrder](
 		ordersByOrderID: make(map[string]*OrderProcess[T]),
 		ordersBySymbol:  make(map[string][]*OrderProcess[T]),
 		completedOrders: make(chan string, 1024), // TODO configure
+		onError:         onError,
 	}
 	return dispatcher
 }
@@ -104,7 +108,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		// A new order - ensure it presents as such.
 		//
 		if def.MsgType != mkt.OrderNew {
-			// TODO notification
+			x.onError(def.OrderID, fmt.Errorf("Dispatcher: expected mkt.OrderNew, received %s", def.MsgType.String()))
 			return
 		}
 		//
@@ -134,12 +138,12 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 	// An existing order, but check it matches first.
 	//
 	if def.MsgType == mkt.OrderNew {
-		// TODO notification
+		x.onError(def.OrderID, fmt.Errorf("Dispatcher: unexpected mkt.OrderNew"))
 		return
 	}
 	pdef := process.Definition()
 	if pdef.Side != def.Side || pdef.Symbol != def.Symbol {
-		// TODO notification
+		x.onError(def.OrderID, fmt.Errorf("Dispatcher: Side or Symbol do not match"))
 		return
 	}
 
@@ -186,7 +190,8 @@ func (x *Dispatcher[T]) handleReport(report *mkt.Report) {
 
 	process, ok := x.ordersByOrderID[report.OrderID]
 	if !ok {
-		// TODO notification
+		x.onError(report.OrderID, fmt.Errorf("Dispatcher: unexpected mkt.Report"))
+		return
 	}
 	process.queue.Push(&Composite[T]{Reports: []*mkt.Report{report}})
 

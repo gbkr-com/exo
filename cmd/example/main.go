@@ -56,7 +56,18 @@ func main() {
 		time.Hour,
 	)
 
-	dispatcher := run.NewDispatcher(instructions, factory, run.ConflateComposite, reports, subscriber, quoteQueue, tradeQueue)
+	dispatcher := run.NewDispatcher(
+		instructions,
+		factory,
+		run.ConflateComposite,
+		reports,
+		subscriber,
+		quoteQueue,
+		tradeQueue,
+		func(orderID string, err error) {
+			os.Stderr.WriteString(fmt.Sprintf("OrderID %s error %s", orderID, err.Error()))
+		},
+	)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)

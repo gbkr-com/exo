@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -30,7 +31,16 @@ func TestDispatcherRun(t *testing.T) {
 
 	subscriber := &mockSubscriber{}
 
-	dispatcher := NewDispatcher(instructions, &mockDelegateFactory[*mkt.Order]{}, ConflateComposite, reports, subscriber, quoteQueue, tradeQueue)
+	dispatcher := NewDispatcher(
+		instructions,
+		&mockDelegateFactory[*mkt.Order]{},
+		ConflateComposite,
+		reports,
+		subscriber,
+		quoteQueue,
+		tradeQueue,
+		func(orderID string, err error) { fmt.Println(orderID, err.Error()) },
+	)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)
