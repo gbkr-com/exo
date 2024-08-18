@@ -48,3 +48,21 @@ This conflation pattern was working for equity markets in 2012. Then it was writ
 #### Persistence, logging ...
 
 `exo` does not prescribe any of these. A `Delegate` is free to make those choices as it is 'outside' of the container code.
+
+## Example
+
+See [Example](cmd/example/main.go)
+
+The example illustrates extending the order object and adds a rudimentary execution algorithm. Run the program with:
+```
+make build
+make run-example
+```
+Enter the order detials via Postman or similar, then something like this should appear on the terminal:
+```
+20:58:55 exo % make run-example
+trade 0.42582859 @ 59988.41
+trade 0.00442362 @ 59988.41
+trade 0.06974779 @ 59988.61
+done
+```
