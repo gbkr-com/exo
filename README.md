@@ -18,7 +18,7 @@ Real time execution needs real time data. In many such cases the arrival rate of
 
 `exo` uses conflation in two ways. One, `exo` fans-out ticker data from a single subscriber to the subscribing delegates, via a dispatcher. When that dispatcher is busy, ticker data is conflated until it can be presented for dispatch. That is conflation of the same data type.
 
-The second way is when quote, trade, instruction and fill information is to be presented to a delegate. One approach is to treat all these independently. However, delegates can then become frantic, making decisions they regret because they did not have a full picture before each decision. `exo` calms this behaviour by conflating all these updates into one package for decision making.
+The second way is when quote, trade, instruction and fill information is to be presented to a delegate. One approach is to treat all these independently. However, delegates can then become frantic, making decisions they regret because they did not have a full picture before each decision. `exo` calms this behaviour by conflating all these updates into one struct for decision making.
 
 In keeping with standard practice, the side and symbol of an order are immutable after creation. With the order ID assigned by `exo`, they form the fundamental identity of an order.
 
