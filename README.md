@@ -41,9 +41,9 @@ Go channels are a natural way to make the dispatcher code wholly event driven th
 
 The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`. In one of the benchmarks:
 
-> Making a `Composite` struct to wrap a `mkt.Quote`, pushing that to a `utl.ConflatingQueue` where an `OrderProcess` pops the queue, passing the quote to a `Delegate` which is then forced to acknowledge it before the benchmark continues (thereby disabling conflation) - is 424ns, correspong to ~200,000 operations per second per order goroutine on an Apple M1.
+> Making a `Composite` struct to wrap a `mkt.Quote`, pushing that to a `utl.ConflatingQueue` where an `OrderProcess` pops the queue, passing the quote to a `Delegate` which is then forced to acknowledge it before the benchmark continues (thereby disabling conflation) - is 424ns, corresponding to ~200,000 operations per second per order goroutine on an Apple M1.
 
-This conflation pattern was working for equity markets in 2012. Then it was written in Java. It is much now simpler, and more efficient, in Go.
+This conflation pattern was working for equity markets in 2012. Then it was written in Java. It is now much simpler, and more efficient, in Go.
 
 #### Persistence, logging ...
 
