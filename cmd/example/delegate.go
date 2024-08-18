@@ -80,24 +80,33 @@ func (x *Delegate) Action(upd *run.Composite[*Order]) bool {
 	}
 
 	if upd.Quote != nil {
-
+		//
+		// How much is left and how much is available?
+		//
 		leavesQty := x.memo.Instructions.OrderQty.Sub(x.memo.State.CumQty)
-
 		px, size := upd.Quote.Far(x.memo.Instructions.Side)
-
+		//
+		// Trade (on paper).
+		//
 		trade := decimal.Min(size, leavesQty)
 		fmt.Println("trade", trade.String(), "@", px.String())
-
+		//
+		// Done?
+		//
 		leavesQty = leavesQty.Sub(trade)
 		if leavesQty.IsZero() {
 			fmt.Println("done")
 			x.removeFromRedis()
 			return true
 		}
+		//
+		// Save.
+		//
 		x.memo.State.CumQty = x.memo.State.CumQty.Add(trade)
 		x.saveToRedis()
 
 	}
+
 	return false
 }
 
