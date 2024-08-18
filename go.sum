@@ -27,8 +27,14 @@ github.com/gabriel-vasile/mimetype v1.4.3 h1:in2uUcidCuFcDKtdcBxlR0rJ1+fsokWf+uq
 github.com/gabriel-vasile/mimetype v1.4.3/go.mod h1:d8uq/6HKRL6CGdk+aubisF/M5GcPfT7nKyLpA0lbSSk=
 github.com/gbkr-com/mkt v0.3.4 h1:paDIdkh5lORK4exkTrIYm67z+aesu6KMpU59wEjfoqw=
 github.com/gbkr-com/mkt v0.3.4/go.mod h1:CClN1CApSnHJN85h9evoqy30eev+oni8Z7Yn/MBSvaQ=
+github.com/gbkr-com/mkt v0.3.5 h1:0EOMZC7kKzJzq/+en4CIS5EMjd+1RltWIqX/xYFTZAU=
+github.com/gbkr-com/mkt v0.3.5/go.mod h1:/tWC0hFeV54MruA5GeY9XaChKK1l6o/nSVjQMEn2sGg=
+github.com/gbkr-com/mkt v0.3.6 h1:AQ3D86L+WiqhsEZKQKqvzfNbofuS1OhYGpqcMkcnCKs=
+github.com/gbkr-com/mkt v0.3.6/go.mod h1:/tWC0hFeV54MruA5GeY9XaChKK1l6o/nSVjQMEn2sGg=
 github.com/gbkr-com/utl v0.3.0 h1:aI99RjnZE2rKq2D+qXOEaoV6mgPHMYh8C8xyp8lyCIo=
 github.com/gbkr-com/utl v0.3.0/go.mod h1:PAb57ehjpQgU0gdWGoWwShzv2ZSSjUAhXoubDC3z6AA=
+github.com/gbkr-com/utl v0.3.1 h1:tG6CqghlHpRADDFRE7T03yqyNOdzqB1kIroNxIkpOPk=
+github.com/gbkr-com/utl v0.3.1/go.mod h1:PAb57ehjpQgU0gdWGoWwShzv2ZSSjUAhXoubDC3z6AA=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=
 github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm+fLHvGI=
 github.com/gin-gonic/gin v1.10.0 h1:nTuyha1TYqgedzytsKYqna+DfLos46nTv2ygFy86HFU=

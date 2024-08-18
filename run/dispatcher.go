@@ -15,6 +15,7 @@ type Dispatcher[T mkt.AnyOrder] struct {
 	instructions chan T
 	factory      DelegateFactory[T]
 	conflator    CompositeConflator[T]
+	reports      chan *mkt.Report
 	subscriber   dma.Subscribable
 	quotes       *utl.ConflatingQueue[string, *mkt.Quote]
 	trades       *utl.ConflatingQueue[string, *mkt.Trade]
@@ -29,6 +30,7 @@ func NewDispatcher[T mkt.AnyOrder](
 	instructions chan T,
 	factory DelegateFactory[T],
 	conflator CompositeConflator[T],
+	reports chan *mkt.Report,
 	subscriber dma.Subscribable,
 	quotes *utl.ConflatingQueue[string, *mkt.Quote],
 	trades *utl.ConflatingQueue[string, *mkt.Trade],
@@ -37,6 +39,7 @@ func NewDispatcher[T mkt.AnyOrder](
 		instructions:    instructions,
 		factory:         factory,
 		conflator:       conflator,
+		reports:         reports,
 		subscriber:      subscriber,
 		quotes:          quotes,
 		trades:          trades,
@@ -64,6 +67,15 @@ func (x *Dispatcher[T]) Run(ctx context.Context, shutdown *sync.WaitGroup) {
 			shutdown.Done()
 			return
 
+		case orderID := <-x.completedOrders:
+			x.removeOrder(orderID)
+
+		case order := <-x.instructions:
+			x.handleOrder(ctx, &processes, order)
+
+		case report := <-x.reports:
+			x.handleReport(report)
+
 		case <-x.quotes.C():
 			quote := x.quotes.Pop()
 			if quote != nil {
@@ -76,11 +88,6 @@ func (x *Dispatcher[T]) Run(ctx context.Context, shutdown *sync.WaitGroup) {
 				x.handleTrade(trade)
 			}
 
-		case order := <-x.instructions:
-			x.handleOrder(ctx, &processes, order)
-
-		case orderID := <-x.completedOrders:
-			x.removeOrder(orderID)
 		}
 
 	}
@@ -172,6 +179,16 @@ func (x *Dispatcher[T]) removeOrder(orderID string) {
 	}
 
 	x.ordersBySymbol[symbol] = others
+
+}
+
+func (x *Dispatcher[T]) handleReport(report *mkt.Report) {
+
+	process, ok := x.ordersByOrderID[report.OrderID]
+	if !ok {
+		// TODO notification
+	}
+	process.queue.Push(&Composite[T]{Reports: []*mkt.Report{report}})
 
 }
 

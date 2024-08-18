@@ -60,6 +60,7 @@ func TestDispatcherRun(t *testing.T) {
 	var shutdown sync.WaitGroup
 
 	instructions := make(chan *mkt.Order, 1)
+	reports := make(chan *mkt.Report, 1)
 
 	quoteQueue := utl.NewConflatingQueue(mkt.QuoteKey)
 	onQuote := SubscriberQuoteQueueConnector(quoteQueue)
@@ -68,7 +69,7 @@ func TestDispatcherRun(t *testing.T) {
 
 	subscriber := &mockSubscriber{}
 
-	dispatcher := NewDispatcher(instructions, &mockActorFactory[*mkt.Order]{}, ConflateComposite, subscriber, quoteQueue, tradeQueue)
+	dispatcher := NewDispatcher(instructions, &mockActorFactory[*mkt.Order]{}, ConflateComposite, reports, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)

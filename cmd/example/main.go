@@ -39,6 +39,7 @@ func main() {
 	factory := &delegateFactory{rdb: rdb, key: redisKey}
 
 	instructions := make(chan *mkt.Order, 1)
+	reports := make(chan *mkt.Report, 1)
 
 	// Market data.
 	quoteQueue := utl.NewConflatingQueue(mkt.QuoteKey)
@@ -55,7 +56,7 @@ func main() {
 		time.Hour,
 	)
 
-	dispatcher := run.NewDispatcher(instructions, factory, run.ConflateComposite, subscriber, quoteQueue, tradeQueue)
+	dispatcher := run.NewDispatcher(instructions, factory, run.ConflateComposite, reports, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)

@@ -9,6 +9,7 @@ import (
 // for an [OrderProcess].
 type Composite[T mkt.AnyOrder] struct {
 	Instructions []T
+	Reports      []*mkt.Report
 	Quote        *mkt.Quote
 	Trade        *mkt.Trade
 }
@@ -26,6 +27,10 @@ func ConflateComposite[T mkt.AnyOrder](existing *Composite[T], latest *Composite
 
 	if len(latest.Instructions) > 0 {
 		existing.Instructions = append(existing.Instructions, latest.Instructions...)
+	}
+
+	if len(latest.Reports) > 0 {
+		existing.Reports = append(existing.Reports, latest.Reports...)
 	}
 
 	if latest.Quote != nil {
