@@ -41,6 +41,8 @@ Go channels are a natural way to make the dispatcher code wholly event driven th
 
 The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`.
 
+This conflation pattern was working for equity markets in 2012. Then it was written in Java. It is much now simpler, and more efficient, in Go.
+
 #### Persistence, logging ...
 
 `exo` does not prescribe any of these. A `Delegate` is free to make those choices as it is 'outside' of the container code.
