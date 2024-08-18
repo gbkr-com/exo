@@ -2,8 +2,6 @@ package run
 
 import (
 	"context"
-	"fmt"
-	"slices"
 	"sync"
 	"testing"
 
@@ -12,43 +10,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
-
-type mockSubscriber struct {
-	subs    []string
-	working sync.WaitGroup
-}
-
-func (x *mockSubscriber) Subscribe(symbol string) {
-	x.subs = append(x.subs, symbol)
-	x.working.Done()
-}
-
-func (x *mockSubscriber) Unsubscribe(symbol string) {
-	x.subs = slices.DeleteFunc(x.subs, func(s string) bool { return s == symbol })
-	x.working.Done()
-}
-
-type mockActor[T mkt.AnyOrder] struct {
-}
-
-func (x *mockActor[T]) Action(upd *Composite[T]) bool {
-	if upd == nil {
-		return false
-	}
-	if upd.Quote != nil {
-		fmt.Println(upd.Quote)
-	}
-	if upd.Trade != nil {
-		fmt.Println(upd.Trade)
-	}
-	return false
-}
-
-func (x *mockActor[T]) CleanUp() {}
-
-type mockActorFactory[T mkt.AnyOrder] struct{}
-
-func (x *mockActorFactory[T]) New(T) Delegate[T] { return &mockActor[T]{} }
 
 func TestDispatcherRun(t *testing.T) {
 
@@ -69,7 +30,7 @@ func TestDispatcherRun(t *testing.T) {
 
 	subscriber := &mockSubscriber{}
 
-	dispatcher := NewDispatcher(instructions, &mockActorFactory[*mkt.Order]{}, ConflateComposite, reports, subscriber, quoteQueue, tradeQueue)
+	dispatcher := NewDispatcher(instructions, &mockDelegateFactory[*mkt.Order]{}, ConflateComposite, reports, subscriber, quoteQueue, tradeQueue)
 
 	shutdown.Add(1)
 	go dispatcher.Run(ctx, &shutdown)

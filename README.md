@@ -39,7 +39,9 @@ The `Dispatcher` and `OrderProcess` are the 'container' surrounding a delegate. 
 
 Go channels are a natural way to make the dispatcher code wholly event driven through the `select` statement. However, channels have capacity and will block when full. `exo` uses the `utl.ConflatingQueue` type which presents a channel that can be used in a `select` yet, until the queue is popped, data is still being conflated and not lost.
 
-The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`.
+The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`. In one of the benchmarks:
+
+> Making a `Composite` struct to wrap a `mkt.Quote`, pushing that to a `utl.ConflatingQueue` where an `OrderProcess` pops the queue, passing the quote to a `Delegate` which is then forced to acknowledge it before the benchmark continues - is 424ns, correspong to ~200,000 operations per second per order goroutine.
 
 This conflation pattern was working for equity markets in 2012. Then it was written in Java. It is much now simpler, and more efficient, in Go.
 
