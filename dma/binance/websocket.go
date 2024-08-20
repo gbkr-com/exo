@@ -114,18 +114,20 @@ type Request struct {
 }
 
 func (x *Connection) subscribeRequest() ([]byte, error) {
+	sym := strings.ToLower(x.symbol)
 	msg := &Request{
 		Method: "SUBSCRIBE",
-		Params: []string{strings.ToLower(x.symbol) + "@ticker"},
+		Params: []string{sym + "@bookTicker", sym + "@trade"},
 		ID:     1,
 	}
 	return json.Marshal(&msg)
 }
 
 func (x *Connection) unsubscribeRequest() ([]byte, error) {
+	sym := strings.ToLower(x.symbol)
 	msg := &Request{
 		Method: "UNSUBSCRIBE",
-		Params: []string{strings.ToLower(x.symbol) + "@ticker"},
+		Params: []string{sym + "@bookTicker", sym + "@trade"},
 		ID:     2,
 	}
 	return json.Marshal(&msg)
@@ -139,10 +141,7 @@ type Response struct {
 
 func (x *Connection) listen() {
 
-	var (
-		lastTradeID  int64
-		reconnecting bool
-	)
+	var reconnecting bool
 
 	defer func() {
 
@@ -184,11 +183,7 @@ func (x *Connection) listen() {
 			continue
 		}
 
-		if !bytes.HasPrefix(b, []byte(`{"e":"24hrTicker"`)) {
-			continue
-		}
-
-		quote, trade, tradeID, err := parse(b)
+		quote, trade, err := parse(b)
 		if err != nil {
 			x.onError(err)
 			return
@@ -198,102 +193,57 @@ func (x *Connection) listen() {
 			x.onQuote(quote)
 		}
 
-		if trade != nil && tradeID != lastTradeID {
+		if trade != nil {
 			x.onTrade(trade)
-			lastTradeID = tradeID
 		}
 
 	}
 
 }
 
-// Ticker is the message for an individual symbol ticker stream. However json.Unmarshal
-// fails with real data (claiming field "L" is a string), but unmarshaling into
-// a basic map does work - albeit with "L" being parsed to a float64.
-// The struct is kept for reference only.
+// Ticker is the composite of the messages from the two streams.
 type Ticker struct {
 	Symbol  string `json:"s"`
-	BidPx   string `json:"b"`
-	BidSize string `json:"B"`
-	AskPx   string `json:"a"`
-	AskSize string `json:"A"`
-	LastQty string `json:"Q"`
-	LastPx  string `json:"c"`
-	TradeID int64  `json:"L"`
+	BidPx   string `json:"b"` // bookTicker
+	BidSize string `json:"B"` // bookTicker
+	AskPx   string `json:"a"` // bookTicker
+	AskSize string `json:"A"` // bookTicker
+	LastQty string `json:"q"` // trade
+	LastPx  string `json:"p"` // trade
 }
 
-func parse(b []byte) (*mkt.Quote, *mkt.Trade, int64, error) {
+func parse(b []byte) (*mkt.Quote, *mkt.Trade, error) {
 
-	var ticker map[string]any
+	var ticker Ticker
 	if err := json.Unmarshal(b, &ticker); err != nil {
-		return nil, nil, 0, err
+		return nil, nil, err
 	}
 
-	var (
-		s     string
-		ok    bool
-		err   error
-		quote mkt.Quote
-		trade mkt.Trade
-	)
+	var err error
 
-	quote.Symbol, ok = ticker["s"].(string)
-	if !ok {
-		return nil, nil, 0, nil
-	}
-
-	s, ok = ticker["b"].(string)
-	if !ok {
-		return nil, nil, 0, nil
-	}
-	if quote.BidPx, err = decimal.NewFromString(s); err != nil {
-		return nil, nil, 0, fmt.Errorf("ticker: b: %w", err)
+	if ticker.BidPx != "" {
+		quote := &mkt.Quote{Symbol: ticker.Symbol}
+		if quote.BidPx, err = decimal.NewFromString(ticker.BidPx); err != nil {
+			return nil, nil, fmt.Errorf("@bookTicker: b: %w", err)
+		}
+		if quote.BidSize, err = decimal.NewFromString(ticker.BidSize); err != nil {
+			return nil, nil, fmt.Errorf("@bookTicker: B: %w", err)
+		}
+		if quote.AskPx, err = decimal.NewFromString(ticker.AskPx); err != nil {
+			return nil, nil, fmt.Errorf("@bookTicker: a: %w", err)
+		}
+		if quote.AskSize, err = decimal.NewFromString(ticker.AskSize); err != nil {
+			return nil, nil, fmt.Errorf("@bookTicker: A: %w", err)
+		}
+		return quote, nil, nil
 	}
 
-	s, ok = ticker["B"].(string)
-	if !ok {
-		return nil, nil, 0, nil
+	trade := &mkt.Trade{Symbol: ticker.Symbol}
+	if trade.LastQty, err = decimal.NewFromString(ticker.LastQty); err != nil {
+		return nil, nil, fmt.Errorf("@trade: q: %w", err)
 	}
-	if quote.BidSize, err = decimal.NewFromString(s); err != nil {
-		return nil, nil, 0, fmt.Errorf("ticker: B: %w", err)
+	if trade.LastPx, err = decimal.NewFromString(ticker.LastPx); err != nil {
+		return nil, nil, fmt.Errorf("@trade: p: %w", err)
 	}
-
-	s, ok = ticker["a"].(string)
-	if !ok {
-		return nil, nil, 0, nil
-	}
-	if quote.AskPx, err = decimal.NewFromString(s); err != nil {
-		return nil, nil, 0, fmt.Errorf("ticker: a: %w", err)
-	}
-
-	s, ok = ticker["A"].(string)
-	if !ok {
-		return nil, nil, 0, nil
-	}
-	if quote.AskSize, err = decimal.NewFromString(s); err != nil {
-		return nil, nil, 0, fmt.Errorf("ticker: A: %w", err)
-	}
-
-	trade.Symbol = quote.Symbol
-
-	s, ok = ticker["Q"].(string)
-	if !ok {
-		return &quote, nil, 0, nil
-	}
-	if trade.LastQty, err = decimal.NewFromString(s); err != nil {
-		return nil, nil, 0, fmt.Errorf("ticker: Q: %w", err)
-	}
-
-	s, ok = ticker["c"].(string)
-	if !ok {
-		return &quote, nil, 0, nil
-	}
-	if trade.LastPx, err = decimal.NewFromString(s); err != nil {
-		return nil, nil, 0, fmt.Errorf("ticker: c: %w", err)
-	}
-
-	f, ok := ticker["L"].(float64)
-	tradeID := int64(f)
-
-	return &quote, &trade, tradeID, nil
+	return nil, trade, nil
 }
