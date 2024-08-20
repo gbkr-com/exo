@@ -28,7 +28,6 @@ func TestHTTP(t *testing.T) {
 	router := gin.New()
 	h := &Handler{
 		rdb:          rdb,
-		key:          ":hash:orders",
 		instructions: make(chan *Order, 16),
 	}
 	h.Bind(router)
@@ -62,7 +61,7 @@ func TestHTTP(t *testing.T) {
 	order := <-h.instructions
 	assert.NotNil(t, order)
 	b, _ := json.Marshal(order)
-	rdb.HSet(context.Background(), h.key, order.OrderID, string(b))
+	rdb.HSet(context.Background(), OrdersHash, order.OrderID, string(b))
 
 	//
 	// DELETE.

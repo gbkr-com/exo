@@ -11,20 +11,27 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// DelegateMemo is the data that is persisted for every order.
-type DelegateMemo struct {
-	Instructions struct {
-		Order
-	} `json:"instructions"`
-	State struct {
-		CumQty decimal.Decimal `json:"cumQty"`
-	}
+// OrdersHash stores all orders in a Redis hash under this key. Each OrderID is a
+// field in the hash.
+const OrdersHash = "hash:orders"
+
+// OrdersHashMemo stores the order in the [OrdersHash].
+type OrdersHashMemo struct {
+	Order
+}
+
+// OrderPrefix is the prefix for an OrderID, forming a key of a Redis 'string'
+// for each order.
+const OrderPrefix = "string:order:"
+
+// OrderMemo is the value associated with an [OrderPrefix] and OrderID.
+type OrderMemo struct {
+	CumQty decimal.Decimal `json:"cumQty"`
 }
 
 // DelegateFactory makes a [Delegate] for each new order.
 type DelegateFactory struct {
 	rdb *redis.Client
-	key string
 }
 
 // New is called by [run.Dispatcher] when creating the [run.OrderProcess].
@@ -37,27 +44,26 @@ func (x *DelegateFactory) New(order *Order) run.Delegate[*Order] {
 	//
 	// Persist the delegate when it is created.
 	//
-	var memo DelegateMemo
-	memo.Instructions.Order = *order
+	var memo OrdersHashMemo
+	memo.Order = *order
 	b, err := json.Marshal(memo)
 	if err != nil {
 		// TODO notify
 		return nil
 	}
-	x.rdb.HSet(context.Background(), x.key, order.OrderID, string(b))
+	x.rdb.HSet(context.Background(), OrdersHash, order.OrderID, string(b))
 
 	return &Delegate{
-		rdb:  x.rdb,
-		key:  x.key,
-		memo: &memo,
+		rdb:   x.rdb,
+		order: order,
 	}
 }
 
 // Delegate is the order handling logic.
 type Delegate struct {
-	rdb  *redis.Client
-	key  string
-	memo *DelegateMemo
+	rdb   *redis.Client
+	order *Order
+	memo  OrderMemo
 }
 
 // Action is called by the [run.OrderProcess] for each [run.Composite] update.
@@ -83,13 +89,13 @@ func (x *Delegate) Action(upd *run.Composite[*Order]) bool {
 		//
 		// How much is left and how much is available?
 		//
-		leavesQty := x.memo.Instructions.OrderQty.Sub(x.memo.State.CumQty)
-		px, size := upd.Quote.Far(x.memo.Instructions.Side)
+		leavesQty := x.order.OrderQty.Sub(x.memo.CumQty)
+		px, size := upd.Quote.Far(x.order.Side)
 		//
 		// Trade (on paper).
 		//
 		trade := decimal.Min(size, leavesQty)
-		fmt.Println("trade", trade.String(), "@", px.String())
+		fmt.Println(x.order.OrderID, "fill", trade.String(), "@", px.String())
 		//
 		// Done?
 		//
@@ -102,7 +108,7 @@ func (x *Delegate) Action(upd *run.Composite[*Order]) bool {
 		//
 		// Save.
 		//
-		x.memo.State.CumQty = x.memo.State.CumQty.Add(trade)
+		x.memo.CumQty = x.memo.CumQty.Add(trade)
 		x.saveToRedis()
 
 	}
@@ -115,9 +121,11 @@ func (x *Delegate) CleanUp() {}
 
 func (x *Delegate) saveToRedis() {
 	b, _ := json.Marshal(x.memo)
-	x.rdb.HSet(context.Background(), x.key, x.memo.Instructions.OrderID, string(b))
+	x.rdb.Set(context.Background(), OrderPrefix+x.order.OrderID, string(b), 0)
 }
 
 func (x *Delegate) removeFromRedis() {
-	x.rdb.HDel(context.Background(), x.key, x.memo.Instructions.OrderID)
+	ctx := context.Background()
+	x.rdb.HDel(ctx, OrdersHash, x.order.OrderID)
+	x.rdb.Del(ctx, OrderPrefix+x.order.OrderID)
 }

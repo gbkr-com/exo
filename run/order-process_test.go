@@ -11,6 +11,10 @@ import (
 
 func BenchmarkOrderProcess(b *testing.B) {
 
+	//
+	// Setup.
+	//
+
 	order := &mkt.Order{
 		MsgType: mkt.OrderNew,
 		OrderID: mkt.NewOrderID(),
@@ -38,6 +42,10 @@ func BenchmarkOrderProcess(b *testing.B) {
 	)
 	shutdown.Add(1)
 	go proc.Run(ctx, &shutdown, completed)
+
+	//
+	// Benchmark.
+	//
 
 	b.ResetTimer()
 

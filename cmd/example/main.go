@@ -23,7 +23,7 @@ import (
 
 func main() {
 
-	url, rate, address, redisAddress, redisKey := configure()
+	url, rate, address, redisAddress := configure()
 
 	ctx, cxl := context.WithCancel(context.Background())
 	var shutdown sync.WaitGroup
@@ -36,7 +36,7 @@ func main() {
 			Addr: redisAddress,
 		},
 	)
-	factory := &DelegateFactory{rdb: rdb, key: redisKey}
+	factory := &DelegateFactory{rdb: rdb}
 
 	instructions := make(chan *Order, 1)
 	reports := make(chan *mkt.Report, 1)
@@ -74,7 +74,6 @@ func main() {
 
 	handler := &Handler{
 		rdb:          rdb,
-		key:          redisKey,
 		instructions: instructions,
 	}
 	gin.SetMode(gin.ReleaseMode)
@@ -94,7 +93,7 @@ func main() {
 
 }
 
-func configure() (url string, rate int, address string, redisAddress string, redisKey string) {
+func configure() (url string, rate int, address string, redisAddress string) {
 	url = os.Getenv("URL")
 	if url == "" {
 		os.Stderr.WriteString("missing URL")
@@ -119,11 +118,6 @@ func configure() (url string, rate int, address string, redisAddress string, red
 	redisAddress = os.Getenv("REDIS")
 	if address == "" {
 		os.Stderr.WriteString("missing REDIS")
-		os.Exit(1)
-	}
-	redisKey = os.Getenv("KEY")
-	if address == "" {
-		os.Stderr.WriteString("missing KEY")
 		os.Exit(1)
 	}
 	return

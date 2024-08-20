@@ -19,7 +19,6 @@ const (
 // A Handler for HTTP traffic.
 type Handler struct {
 	rdb          *redis.Client
-	key          string
 	instructions chan *Order
 }
 
@@ -97,7 +96,7 @@ func (x *Handler) getOrder(ctx *gin.Context) {
 	//
 	// Content.
 	//
-	order, err := x.rdb.HGet(context.Background(), x.key, uri.OrderID).Result()
+	order, err := x.rdb.HGet(context.Background(), OrdersHash, uri.OrderID).Result()
 	if err == redis.Nil {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return
@@ -120,12 +119,12 @@ func (x *Handler) deleteOrder(ctx *gin.Context) {
 	//
 	// Content.
 	//
-	str, err := x.rdb.HGet(context.Background(), x.key, uri.OrderID).Result()
+	str, err := x.rdb.HGet(context.Background(), OrdersHash, uri.OrderID).Result()
 	if err == redis.Nil {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	var memo DelegateMemo
+	var memo OrdersHashMemo
 	if err := json.Unmarshal([]byte(str), &memo); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -133,9 +132,8 @@ func (x *Handler) deleteOrder(ctx *gin.Context) {
 	//
 	// Forward.
 	//
-	memo.Instructions.MsgType = mkt.OrderCancel
-	x.instructions <- &memo.Instructions.Order
-	x.rdb.HDel(context.Background(), x.key, uri.OrderID)
+	memo.Order.MsgType = mkt.OrderCancel
+	x.instructions <- &memo.Order
 
 	ctx.JSON(http.StatusAccepted, gin.H{"orderID": uri.OrderID})
 }

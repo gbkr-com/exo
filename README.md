@@ -12,7 +12,7 @@
 
 ### Operational
 
-Real time execution needs real time data. In many such cases the arrival rate of market data, even Level I (quote) data, can outstrip the speed of sending and persisting orders for the counterparty. One solution is 'co-location' and the dedication to handle ***every*** tick. Another, more economic, approach is 'conflation'.
+Real time execution needs real time data. In many such cases the arrival rate of market data, even Level I (quote) data, can outstrip the speed of sending orders to the counterparty. One solution is 'co-location' and the dedication to handle ***every*** tick. Another, more economic, approach is 'conflation'.
 
 > the merging of two or more sets of information ... into one
 
@@ -39,26 +39,36 @@ The `Dispatcher` and `OrderProcess` are the 'container' surrounding a delegate. 
 
 Go channels are a natural way to make the dispatcher code wholly event driven through the `select` statement. However, channels have capacity and will block when full. `exo` uses the `utl.ConflatingQueue` type which presents a channel that can be used in a `select` yet, until the queue is popped, data is still being conflated and not lost.
 
-The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`. In one of the benchmarks:
-
-> Making a `Composite` struct to wrap a `mkt.Quote`, pushing that to a `utl.ConflatingQueue` where an `OrderProcess` pops the queue, passing the quote to a `Delegate` which is then forced to acknowledge it before the benchmark continues (thereby disabling conflation) - is 424ns, corresponding to ~200,000 operations per second per order goroutine on an Apple M1.
-
 This conflation pattern was working for equity markets in 2012. Then it was written in Java. It is now much simpler, and more efficient, in Go.
 
 #### Persistence, logging ...
 
 `exo` does not prescribe any of these. A `Delegate` is free to make those choices as it is 'outside' of the container code.
 
+## Performance
+
+I/O dominates compute. And, for many crypto markets, transaction I/O dominates market data I/O. Rate limits can dominate everything.
+
+### Compute
+
+The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`.
+
+[BenchmarkOrderProcess](run/order-process_test.go) benchmarks a quote from entry to the `OrderProcess` to receipt by the `Delegate`, where it is forced to acknowledge the quote before the benchmark continues, thereby disabling conlfation. On an Apple M1, that benchmarks at ~430ns, or ~2m operations per second.
+
+### Cloud
+
+Looking at AWS latency with [CloudPing](https://www.cloudping.co/grid), with a 'co-lo' strategy the minimum latency is single digit milliseconds, for example around 1-2 milliseconds for Tokyo (Binance). This is equivalent to 500 messages per second.
+
 ## Example
 
 See [Example](cmd/example/main.go)
 
-The example illustrates extending the order object and adds a rudimentary execution algorithm. Run the program with:
+The example illustrates extending the order object and adds a rudimentary execution algorithm. It requires Redis. Run the program with:
 ```
 make build
 make run-example
 ```
-Enter the order detials via Postman or similar, then something like this should appear on the terminal:
+Enter the order details via Postman or similar, then something like this should appear on the terminal:
 ```
 20:58:55 exo % make run-example
 trade 0.42582859 @ 59988.41
