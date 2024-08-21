@@ -10,8 +10,8 @@ import (
 
 // WebsocketConnectable defines the websocket connections.
 type WebsocketConnectable interface {
-	OpenWebsocket()
-	CloseWebsocket()
+	OpenWebSocket()
+	CloseWebSocket()
 }
 
 // A ConnectionFactory manufactures a connection.
@@ -75,12 +75,12 @@ func (x *Subscriber[T]) Subscribe(symbol string) {
 	}
 
 	conn := x.factory(x.url, symbol, x.onQuote, x.onTrade, x.onError, x.limiter, x.lifetime)
-	conn.OpenWebsocket()
+	conn.OpenWebSocket()
 	x.subscriptions[symbol] = conn
 
 }
 
-// Unsubscribe to the given symbol.
+// Unsubscribe from the given symbol.
 func (x *Subscriber[T]) Unsubscribe(symbol string) {
 
 	if symbol == "" {
@@ -95,7 +95,7 @@ func (x *Subscriber[T]) Unsubscribe(symbol string) {
 		return
 	}
 
-	conn.CloseWebsocket()
+	conn.CloseWebSocket()
 	delete(x.subscriptions, symbol)
 
 }

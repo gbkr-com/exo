@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gbkr-com/exo/dma"
 	"github.com/gbkr-com/exo/dma/coinbase"
+	"github.com/gbkr-com/exo/env"
 	"github.com/gbkr-com/exo/run"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
@@ -85,7 +84,7 @@ func main() {
 	}
 	go srv.ListenAndServe()
 
-	<-Signal()
+	<-env.Signal()
 	fmt.Println("")
 	cxl()
 	shutdown.Wait()
@@ -94,38 +93,15 @@ func main() {
 }
 
 func configure() (url string, rate int, address string, redisAddress string) {
-	url = os.Getenv("URL")
-	if url == "" {
-		os.Stderr.WriteString("missing URL")
-		os.Exit(1)
-	}
-	x := os.Getenv("RATE")
-	if x == "" {
-		os.Stderr.WriteString("missing RATE")
-		os.Exit(1)
-	}
+	url = env.MustHave("URL")
+	x := env.MustHave("RATE")
 	var err error
 	rate, err = strconv.Atoi(x)
 	if err != nil {
 		os.Stderr.WriteString("bad RATE")
 		os.Exit(1)
 	}
-	address = os.Getenv("HTTP")
-	if address == "" {
-		os.Stderr.WriteString("missing HTTP")
-		os.Exit(1)
-	}
-	redisAddress = os.Getenv("REDIS")
-	if address == "" {
-		os.Stderr.WriteString("missing REDIS")
-		os.Exit(1)
-	}
+	address = env.MustHave("HTTP")
+	redisAddress = env.MustHave("REDIS")
 	return
-}
-
-// Signal for termination.
-func Signal() <-chan os.Signal {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	return quit
 }

@@ -25,3 +25,4 @@ go.work.sum
 .env
 
 cmd/example/example
+dma/binance/test.env

@@ -53,8 +53,8 @@ type Connection struct {
 	exit *sync.WaitGroup
 }
 
-// OpenWebsocket opens the connection.
-func (x *Connection) OpenWebsocket() {
+// OpenWebSocket opens the connection.
+func (x *Connection) OpenWebSocket() {
 
 	x.limiter.Block()
 
@@ -81,8 +81,8 @@ func (x *Connection) OpenWebsocket() {
 
 }
 
-// CloseWebsocket closes the connection.
-func (x *Connection) CloseWebsocket() {
+// CloseWebSocket closes the connection.
+func (x *Connection) CloseWebSocket() {
 
 	x.limiter.Block()
 
@@ -152,7 +152,7 @@ func (x *Connection) listen() {
 		x.exit.Done()
 
 		if reconnecting {
-			x.OpenWebsocket()
+			x.OpenWebSocket()
 		}
 
 	}()

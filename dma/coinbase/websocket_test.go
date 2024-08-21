@@ -32,9 +32,9 @@ func TestWebsocket(t *testing.T) {
 		lifetime: 2 * time.Second,
 	}
 
-	conn.OpenWebsocket()
+	conn.OpenWebSocket()
 	<-time.After(4 * time.Second)
-	conn.CloseWebsocket()
+	conn.CloseWebSocket()
 
 	assert.Equal(t, 0, len(errors))
 
