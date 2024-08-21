@@ -4,10 +4,13 @@ go 1.22.1
 
 require (
 	github.com/alicebob/miniredis/v2 v2.33.0
-	github.com/gbkr-com/mkt v0.3.6
+	github.com/gbkr-com/mkt v0.3.7
 	github.com/gbkr-com/utl v0.3.1
 	github.com/gin-gonic/gin v1.10.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/quickfixgo/enum v0.1.0
+	github.com/quickfixgo/field v0.1.0
+	github.com/quickfixgo/quickfix v0.7.0
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.9.0
@@ -42,9 +45,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/quickfixgo/enum v0.1.0 // indirect
-	github.com/quickfixgo/field v0.1.0 // indirect
-	github.com/quickfixgo/quickfix v0.7.0 // indirect
 	github.com/quickfixgo/tag v0.1.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect

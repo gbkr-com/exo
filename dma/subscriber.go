@@ -4,22 +4,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gbkr-com/exo/dma/binance"
-	"github.com/gbkr-com/exo/dma/bitmex"
-	"github.com/gbkr-com/exo/dma/coinbase"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 )
 
-// Connectable defines the implemented websocket connections.
-type Connectable interface {
-	*binance.Connection | *bitmex.Connection | *coinbase.Connection
-	Open()
-	Close()
+// WebsocketConnectable defines the websocket connections.
+type WebsocketConnectable interface {
+	OpenWebsocket()
+	CloseWebsocket()
 }
 
 // A ConnectionFactory manufactures a connection.
-type ConnectionFactory[T Connectable] func(
+type ConnectionFactory[T WebsocketConnectable] func(
 	url string,
 	symbol string,
 	onQuote func(*mkt.Quote),
@@ -30,7 +26,7 @@ type ConnectionFactory[T Connectable] func(
 ) T
 
 // Subscriber for a specific exchange.
-type Subscriber[T Connectable] struct {
+type Subscriber[T WebsocketConnectable] struct {
 	url           string
 	onQuote       func(*mkt.Quote)
 	onTrade       func(*mkt.Trade)
@@ -43,7 +39,7 @@ type Subscriber[T Connectable] struct {
 }
 
 // NewSubscriber returns a [*Subscriber] ready to use.
-func NewSubscriber[T Connectable](
+func NewSubscriber[T WebsocketConnectable](
 	url string,
 	factory ConnectionFactory[T],
 	onQuote func(*mkt.Quote),
@@ -79,7 +75,7 @@ func (x *Subscriber[T]) Subscribe(symbol string) {
 	}
 
 	conn := x.factory(x.url, symbol, x.onQuote, x.onTrade, x.onError, x.limiter, x.lifetime)
-	conn.Open()
+	conn.OpenWebsocket()
 	x.subscriptions[symbol] = conn
 
 }
@@ -99,7 +95,7 @@ func (x *Subscriber[T]) Unsubscribe(symbol string) {
 		return
 	}
 
-	conn.Close()
+	conn.CloseWebsocket()
 	delete(x.subscriptions, symbol)
 
 }
