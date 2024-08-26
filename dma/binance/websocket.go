@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gbkr-com/exo/dma"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/gorilla/websocket"
@@ -159,6 +160,9 @@ func (x *Connection) listen() {
 
 	c := time.After(x.lifetime)
 
+	messages := make(chan []byte, 16)
+	go dma.ReadWebSocket(x.conn, messages)
+
 	for {
 
 		select {
@@ -167,34 +171,23 @@ func (x *Connection) listen() {
 		case <-c:
 			reconnecting = true
 			return
-		default:
-		}
+		case b := <-messages:
+			if bytes.HasPrefix(b, []byte(`{"result":`)) {
+				continue
+			}
+			quote, trade, err := parse(b)
+			if err != nil {
+				x.onError(err)
+				return
+			}
 
-		t, b, err := x.conn.ReadMessage()
-		if err != nil {
-			x.onError(err)
-			return
-		}
-		if t != websocket.TextMessage {
-			continue
-		}
+			if quote != nil {
+				x.onQuote(quote)
+			}
 
-		if bytes.HasPrefix(b, []byte(`{"result":`)) {
-			continue
-		}
-
-		quote, trade, err := parse(b)
-		if err != nil {
-			x.onError(err)
-			return
-		}
-
-		if quote != nil {
-			x.onQuote(quote)
-		}
-
-		if trade != nil {
-			x.onTrade(trade)
+			if trade != nil {
+				x.onTrade(trade)
+			}
 		}
 
 	}

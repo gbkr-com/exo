@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gbkr-com/exo/dma"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/gorilla/websocket"
@@ -129,10 +130,7 @@ func (x *Connection) unsubscribeRequest() ([]byte, error) {
 
 func (x *Connection) listen() {
 
-	var (
-		// lastTradeID  int64
-		reconnecting bool
-	)
+	var reconnecting bool
 
 	defer func() {
 
@@ -150,6 +148,9 @@ func (x *Connection) listen() {
 
 	c := time.After(x.lifetime)
 
+	messages := make(chan []byte, 16)
+	go dma.ReadWebSocket(x.conn, messages)
+
 	for {
 
 		select {
@@ -158,42 +159,31 @@ func (x *Connection) listen() {
 		case <-c:
 			reconnecting = true
 			return
-		default:
-		}
-
-		t, b, err := x.conn.ReadMessage()
-		if err != nil {
-			x.onError(err)
-			return
-		}
-		if t != websocket.TextMessage {
-			continue
-		}
-
-		if bytes.HasPrefix(b, []byte(`{"table":"quote"`)) {
-			quote, err := parseQuote(b)
-			if err != nil {
-				x.onError(err)
-				return
+		case b := <-messages:
+			if bytes.HasPrefix(b, []byte(`{"table":"quote"`)) {
+				quote, err := parseQuote(b)
+				if err != nil {
+					x.onError(err)
+					return
+				}
+				if quote != nil {
+					x.onQuote(quote)
+				}
+				break
 			}
-			if quote != nil {
-				x.onQuote(quote)
-			}
-			continue
-		}
 
-		if bytes.HasPrefix(b, []byte(`{"table":"trade"`)) {
-			trades, err := parseTrade(b)
-			if err != nil {
-				x.onError(err)
-				return
-			}
-			if trades != nil {
-				for _, v := range trades {
-					x.onTrade(v)
+			if bytes.HasPrefix(b, []byte(`{"table":"trade"`)) {
+				trades, err := parseTrade(b)
+				if err != nil {
+					x.onError(err)
+					return
+				}
+				if trades != nil {
+					for _, v := range trades {
+						x.onTrade(v)
+					}
 				}
 			}
-			continue
 		}
 
 	}
