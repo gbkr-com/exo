@@ -8,7 +8,7 @@ const (
 	WebSocketRequestsPerHour = 720
 )
 
-// COnstants for the BitMex HTTP interface.
+// Constants for the BitMex HTTP interface.
 const (
 	OrderTestURL         = "https://testnet.bitmex.com/api/v1/order"
 	RequestExpirySeconds = 5

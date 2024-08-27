@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gbkr-com/exo/dma"
 	"github.com/gbkr-com/utl"
 	"github.com/gorilla/websocket"
 )
@@ -133,6 +134,9 @@ func (x *OrderConnection) listen() {
 
 	c := time.After(x.lifetime)
 
+	messages := make(chan []byte, 16)
+	go dma.ReadWebSocket(x.conn, messages)
+
 	for {
 
 		select {
@@ -141,23 +145,13 @@ func (x *OrderConnection) listen() {
 		case <-c:
 			reconnecting = true
 			return
-		default:
-		}
-
-		t, b, err := x.conn.ReadMessage()
-		if err != nil {
-			x.onError(err)
-			return
-		}
-		if t != websocket.TextMessage {
-			continue
-		}
-
-		if bytes.HasPrefix(b, []byte(`{"table":"order"`)) {
-			fmt.Println(string(b))
-		}
-		if bytes.HasPrefix(b, []byte(`{"table":"execution"`)) {
-			fmt.Println(string(b))
+		case b := <-messages:
+			if bytes.HasPrefix(b, []byte(`{"table":"order"`)) {
+				fmt.Println(string(b))
+			}
+			if bytes.HasPrefix(b, []byte(`{"table":"execution"`)) {
+				fmt.Println(string(b))
+			}
 		}
 
 	}

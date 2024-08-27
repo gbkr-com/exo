@@ -48,7 +48,7 @@ func NewOrder(request *dma.NewRequest, url, apiKey, secret string) (*http.Reques
 		return nil, err
 	}
 
-	headers(req, apiKey, signature)
+	setRequestHeaders(req, expires, apiKey, signature)
 
 	return req, nil
 
@@ -86,7 +86,7 @@ func ReplaceOrder(request *dma.ReplaceRequest, url, apiKey, secret string) (*htt
 		return nil, err
 	}
 
-	headers(req, apiKey, signature)
+	setRequestHeaders(req, expires, apiKey, signature)
 
 	return req, nil
 
@@ -112,7 +112,7 @@ func CancelOrder(request *dma.CancelRequest, url, apiKey, secret string) (*http.
 		return nil, err
 	}
 
-	headers(req, apiKey, signature)
+	setRequestHeaders(req, expires, apiKey, signature)
 
 	return req, nil
 
@@ -132,9 +132,8 @@ func sign(verb, path, expires string, body []byte, secret string) string {
 
 }
 
-func headers(request *http.Request, apiKey, signature string) {
-	expires := time.Now().Unix() + RequestExpirySeconds
-	request.Header.Set("api-expires", strconv.FormatInt(expires, 10))
+func setRequestHeaders(request *http.Request, expires, apiKey, signature string) {
+	request.Header.Set("api-expires", expires)
 	request.Header.Set("api-key", apiKey)
 	request.Header.Set("api-signature", signature)
 
