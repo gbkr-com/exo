@@ -83,13 +83,18 @@ func (x *OrderConnection) connect() error {
 		return fmt.Errorf("Connection: StatusCode: %d", response.StatusCode)
 	}
 
-	expires := strconv.FormatInt(time.Now().Unix()+RequestExpirySeconds, 10)
+	expiry := time.Now().Unix() + RequestExpirySeconds
+	expires := strconv.FormatInt(expiry, 10)
 	signature := sign(http.MethodGet, x.url, expires, []byte(""), x.secret)
 
-	msg := &Command{
+	msg := struct {
+		Op   string `json:"op"`
+		Args []any  `json:"args"`
+	}{
 		Op:   "authKeyExpires",
-		Args: []string{x.apiKey, expires, signature},
+		Args: []any{x.apiKey, expiry, signature},
 	}
+
 	b, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -152,6 +157,7 @@ func (x *OrderConnection) listen() {
 			if bytes.HasPrefix(b, []byte(`{"table":"execution"`)) {
 				fmt.Println(string(b))
 			}
+			fmt.Println(string(b))
 		}
 
 	}
