@@ -187,8 +187,7 @@ func (x *Application) handleOrderCancelReject(message *quickfix.Message) quickfi
 func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.MessageRejectError {
 
 	var (
-		clOrdID field.ClOrdIDField
-		// origClOrdID  field.OrigClOrdIDField
+		clOrdID      field.ClOrdIDField
 		orderID      field.OrderIDField
 		ordStatus    field.OrdStatusField
 		execType     field.ExecTypeField
@@ -206,9 +205,6 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 	//
 	// Fields which can be defaulted.
 	//
-	// if reject := message.Body.Get(&origClOrdID); reject != nil {
-	// 	origClOrdID = field.NewOrigClOrdID("")
-	// }
 	if reject := message.Body.Get(&transactTime); reject != nil {
 		transactTime = field.NewTransactTime(time.Now().UTC())
 	}
