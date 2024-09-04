@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	rejectUnknownClOrdID    = quickfix.NewBusinessMessageRejectError("ClOrdID not known", 380, nil)
-	rejectNotPendingNew     = quickfix.NewBusinessMessageRejectError("Order not PENDING_NEW", 380, nil)
-	rejectNotPendingReplace = quickfix.NewBusinessMessageRejectError("Order not PENDING_REPLACE", 380, nil)
-	rejectNotPendingCancel  = quickfix.NewBusinessMessageRejectError("Order not PENDING_CANCEL", 380, nil)
-	rejectExpireGTC         = quickfix.NewBusinessMessageRejectError("Cannot expire GTC", 380, nil)
+	rejectUnknownClOrdID     = quickfix.NewBusinessMessageRejectError("ClOrdID not known", 380, nil)
+	rejectUnknownOrigClOrdID = quickfix.NewBusinessMessageRejectError("OrigClOrdID not known", 380, nil)
+	rejectNotPendingNew      = quickfix.NewBusinessMessageRejectError("Order not PENDING_NEW", 380, nil)
+	rejectNotPendingReplace  = quickfix.NewBusinessMessageRejectError("Order not PENDING_REPLACE", 380, nil)
+	rejectNotPendingCancel   = quickfix.NewBusinessMessageRejectError("Order not PENDING_CANCEL", 380, nil)
+	rejectExpireGTC          = quickfix.NewBusinessMessageRejectError("Cannot expire GTC", 380, nil)
 )
 
 // Application implements [quickfix.Application] for sending requests and
@@ -186,8 +187,8 @@ func (x *Application) handleOrderCancelReject(message *quickfix.Message) quickfi
 func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.MessageRejectError {
 
 	var (
-		clOrdID      field.ClOrdIDField
-		origClOrdID  field.OrigClOrdIDField
+		clOrdID field.ClOrdIDField
+		// origClOrdID  field.OrigClOrdIDField
 		orderID      field.OrderIDField
 		ordStatus    field.OrdStatusField
 		execType     field.ExecTypeField
@@ -205,9 +206,9 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 	//
 	// Fields which can be defaulted.
 	//
-	if reject := message.Body.Get(&origClOrdID); reject != nil {
-		origClOrdID = field.NewOrigClOrdID("")
-	}
+	// if reject := message.Body.Get(&origClOrdID); reject != nil {
+	// 	origClOrdID = field.NewOrigClOrdID("")
+	// }
 	if reject := message.Body.Get(&transactTime); reject != nil {
 		transactTime = field.NewTransactTime(time.Now().UTC())
 	}
@@ -285,9 +286,13 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 		//
 		// A cancel request has been received by the counterparty.
 		//
-		open := x.ordersByClOrdID[clOrdID.Value()]
+		var origClOrdID field.OrigClOrdIDField
+		if reject := message.Body.Get(&origClOrdID); reject != nil {
+			return reject
+		}
+		open := x.ordersByClOrdID[origClOrdID.Value()]
 		if open == nil {
-			return rejectUnknownClOrdID
+			return rejectUnknownOrigClOrdID
 		}
 		if open.PendingCancel == nil {
 			return rejectNotPendingCancel
@@ -305,22 +310,26 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 		//
 		// A cancel request has been accepted by the counterparty.
 		//
-		open := x.ordersByClOrdID[clOrdID.Value()]
+		var origClOrdID field.OrigClOrdIDField
+		if reject := message.Body.Get(&origClOrdID); reject != nil {
+			return reject
+		}
+		open := x.ordersByClOrdID[origClOrdID.Value()]
 		if open == nil {
-			return rejectUnknownClOrdID
+			return rejectUnknownOrigClOrdID
 		}
 		if open.PendingCancel == nil {
 			return rejectNotPendingCancel
 		}
 
-		original := open.ClOrdID
 		open.PendingCancel.Accept()
-		x.remove(original, open.OrderID)
+		x.remove(origClOrdID.Value(), open.OrderID)
 
 		report := open.DraftReport()
 		report.OrdStatus = mkt.OrdStatusCanceled
 		report.TransactTime = transactTime.Time
 		report.ExecInst = x.reportExecInst(open.OrderID)
+		x.onReport(report)
 
 	case enum.ExecType_EXPIRED: // ---------------------------------------------
 		//
