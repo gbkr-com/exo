@@ -25,8 +25,8 @@ github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/r
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
 github.com/gabriel-vasile/mimetype v1.4.3 h1:in2uUcidCuFcDKtdcBxlR0rJ1+fsokWf+uqxgUFjbI0=
 github.com/gabriel-vasile/mimetype v1.4.3/go.mod h1:d8uq/6HKRL6CGdk+aubisF/M5GcPfT7nKyLpA0lbSSk=
-github.com/gbkr-com/mkt v0.3.7 h1:ngkFnqwzWxqx0jFpX64sWa0/2PUyLOSuR+jfljnvMBw=
-github.com/gbkr-com/mkt v0.3.7/go.mod h1:/tWC0hFeV54MruA5GeY9XaChKK1l6o/nSVjQMEn2sGg=
+github.com/gbkr-com/mkt v0.3.8 h1:DM0Op62XRjNFMtTt3dv2RKbT4YCqy/0NFbnPsEV2VjM=
+github.com/gbkr-com/mkt v0.3.8/go.mod h1:/tWC0hFeV54MruA5GeY9XaChKK1l6o/nSVjQMEn2sGg=
 github.com/gbkr-com/utl v0.3.1 h1:tG6CqghlHpRADDFRE7T03yqyNOdzqB1kIroNxIkpOPk=
 github.com/gbkr-com/utl v0.3.1/go.mod h1:PAb57ehjpQgU0gdWGoWwShzv2ZSSjUAhXoubDC3z6AA=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=

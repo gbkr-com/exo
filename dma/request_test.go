@@ -13,6 +13,7 @@ import (
 func TestRequestLifecycle(t *testing.T) {
 
 	open := &OpenOrder{
+		OrderID:     mkt.NewOrderID(),
 		Side:        mkt.Buy,
 		Symbol:      "A",
 		OrderQty:    decimal.New(100, 0),
@@ -33,7 +34,7 @@ func TestRequestLifecycle(t *testing.T) {
 	ORDERID := mkt.NewOrderID()
 	nr.Accept(ORDERID)
 
-	assert.Equal(t, ORDERID, open.OrderID)
+	assert.Equal(t, ORDERID, open.SecondaryOrderID)
 	assert.Equal(t, open.ClOrdID, nr.ClOrdID)
 	assert.Nil(t, open.PendingNew)
 
@@ -58,7 +59,7 @@ func TestRequestLifecycle(t *testing.T) {
 	ORDERID = mkt.NewOrderID()
 	rr.Accept(ORDERID)
 
-	assert.Equal(t, ORDERID, open.OrderID)
+	assert.Equal(t, ORDERID, open.SecondaryOrderID)
 	assert.Equal(t, open.ClOrdID, rr.ClOrdID)
 	assert.True(t, open.Price.Equal(*rr.Price))
 	assert.Nil(t, open.PendingReplace)

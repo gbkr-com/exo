@@ -14,6 +14,7 @@ browse:
 .PHONY: build
 build:
 	@cd cmd/example && go build
+	@cd cmd/paper && go build
 
 .PHONY: run-example
 run-example: export URL = wss://ws-feed.exchange.coinbase.com
@@ -23,3 +24,7 @@ run-example: export REDIS = localhost:6379
 run-example: export KEY = :hash:orders
 run-example:
 	@cd cmd/example && ./example
+
+.PHONY: run-paper
+run-paper:
+	@cd cmd/paper && ./paper

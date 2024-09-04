@@ -8,98 +8,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// A OpenOrder is the current state of an order sent to a counterparty.
-type OpenOrder struct {
-	Account        string          // FIX field 1
-	OrderID        string          // FIX field 37
-	ClOrdID        string          // FIX field 11
-	Side           mkt.Side        // FIX field 54
-	Symbol         string          // FIX field 55
-	OrderQty       decimal.Decimal // FIX field 38
-	Price          decimal.Decimal // FIX field 44
-	TimeInForce    mkt.TimeInForce // FIX field 59
-	PendingNew     *NewRequest
-	PendingReplace *ReplaceRequest
-	PendingCancel  *CancelRequest
-	Complete       bool
-}
-
-// IsPending returns true if there is an outstanding request.
-func (x *OpenOrder) IsPending() bool {
-	return x.PendingNew != nil || x.PendingReplace != nil || x.PendingCancel != nil
-}
-
-// MakeNewRequest returns a [*NewRequest] if the state allows
-func (x *OpenOrder) MakeNewRequest() *NewRequest {
-	if x.Complete {
-		return nil
-	}
-	if x.IsPending() {
-		return nil
-	}
-	if x.OrderID != "" {
-		return nil
-	}
-	request := &NewRequest{
-		OpenOrder:   x,
-		ClOrdID:     mkt.NewOrderID(),
-		Side:        x.Side,
-		Symbol:      x.Symbol,
-		OrderQty:    x.OrderQty,
-		Price:       x.Price,
-		TimeInForce: x.TimeInForce,
-	}
-	x.PendingNew = request
-	return request
-}
-
-// MakeReplaceRequest returns a [*ReplaceRequest] if the state allows.
-func (x *OpenOrder) MakeReplaceRequest(orderQty *decimal.Decimal, price *decimal.Decimal) *ReplaceRequest {
-	if x.Complete {
-		return nil
-	}
-	if x.IsPending() {
-		return nil
-	}
-	if x.OrderID == "" {
-		return nil
-	}
-	if orderQty == nil && price == nil {
-		return nil
-	}
-	request := &ReplaceRequest{
-		OpenOrder:   x,
-		ClOrdID:     mkt.NewOrderID(),
-		OrigClOrdID: x.ClOrdID,
-		OrderQty:    orderQty,
-		Price:       price,
-	}
-	x.PendingReplace = request
-	return request
-}
-
-// MakeCancelRequest returns a [*CancelRequest] if the state allows.
-func (x *OpenOrder) MakeCancelRequest() *CancelRequest {
-	if x.Complete {
-		return nil
-	}
-	if x.IsPending() {
-		return nil
-	}
-	if x.OrderID == "" {
-		return nil
-	}
-	request := &CancelRequest{
-		OpenOrder:   x,
-		ClOrdID:     mkt.NewOrderID(),
-		OrigClOrdID: x.ClOrdID,
-	}
-	x.PendingCancel = request
-	return request
-}
-
-// -----------------------------------------------------------------------------
-
 // NewRequest corresponds to a FIX NewOrderSingle.
 type NewRequest struct {
 	OpenOrder   *OpenOrder
@@ -111,14 +19,13 @@ type NewRequest struct {
 	TimeInForce mkt.TimeInForce // FIX field 59
 }
 
-// Accept the request.
+// Accept the request using the order ID from the counterparty.
 func (x *NewRequest) Accept(orderID string) {
-	x.OpenOrder.OrderID = orderID
-	x.OpenOrder.ClOrdID = x.ClOrdID
+	x.OpenOrder.SecondaryOrderID = orderID
 	x.OpenOrder.PendingNew = nil
 }
 
-// Reject the requuest.
+// Reject the request.
 func (x *NewRequest) Reject() {
 	x.OpenOrder.PendingNew = nil
 }
@@ -152,7 +59,7 @@ type ReplaceRequest struct {
 func (x *ReplaceRequest) Accept(orderID string) {
 	x.OpenOrder.ClOrdID = x.ClOrdID
 	if orderID != "" {
-		x.OpenOrder.OrderID = orderID
+		x.OpenOrder.SecondaryOrderID = orderID
 	}
 	if x.OrderQty != nil {
 		x.OpenOrder.OrderQty = *x.OrderQty
@@ -163,7 +70,7 @@ func (x *ReplaceRequest) Accept(orderID string) {
 	x.OpenOrder.PendingReplace = nil
 }
 
-// Reject the requuest.
+// Reject the request.
 func (x *ReplaceRequest) Reject() {
 	x.OpenOrder.PendingReplace = nil
 }
@@ -174,7 +81,7 @@ func (x *ReplaceRequest) AsQuickFIX() *quickfix.Message {
 	message.Header.Set(field.NewMsgType(enum.MsgType_ORDER_CANCEL_REPLACE_REQUEST))
 	message.Body.Set(field.NewClOrdID(x.ClOrdID))
 	message.Body.Set(field.NewOrigClOrdID(x.OrigClOrdID))
-	message.Body.Set(field.NewOrderID(x.OpenOrder.OrderID))
+	message.Body.Set(field.NewOrderID(x.OpenOrder.SecondaryOrderID))
 	message.Body.Set(field.NewOrdType(enum.OrdType_LIMIT))
 	message.Body.Set(field.NewSymbol(x.OpenOrder.Symbol))
 	if x.OrderQty != nil {
@@ -201,7 +108,7 @@ func (x *CancelRequest) Accept() {
 	x.OpenOrder.PendingCancel = nil
 }
 
-// Reject the requuest.
+// Reject the request.
 func (x *CancelRequest) Reject() {
 	x.OpenOrder.PendingCancel = nil
 }
@@ -212,7 +119,7 @@ func (x *CancelRequest) AsQuickFIX() *quickfix.Message {
 	message.Header.Set(field.NewMsgType(enum.MsgType_ORDER_CANCEL_REQUEST))
 	message.Body.Set(field.NewClOrdID(x.ClOrdID))
 	message.Body.Set(field.NewOrigClOrdID(x.OrigClOrdID))
-	message.Body.Set(field.NewOrderID(x.OpenOrder.OrderID))
+	message.Body.Set(field.NewOrderID(x.OpenOrder.SecondaryOrderID))
 	message.Body.Set(field.NewSymbol(x.OpenOrder.Symbol))
 	return message
 }
