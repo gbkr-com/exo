@@ -175,8 +175,12 @@ func (x *Application) handleOrderCancelReject(message *quickfix.Message) quickfi
 
 	}
 
+	ordStatus, reject := x.reportFillOrdStatus(message, open)
+	if reject != nil {
+		return reject
+	}
 	report := open.DraftReport()
-	report.OrdStatus = x.reportFillOrdStatus(message, open)
+	report.OrdStatus = ordStatus
 	report.TransactTime = transactTime.Time
 	report.ExecInst = x.reportExecInst(open.OrderID)
 	x.onReport(report)
@@ -351,9 +355,13 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 		//
 		// A replace request has been received by the counterparty.
 		//
-		open := x.ordersByClOrdID[clOrdID.Value()]
+		var origClOrdID field.OrigClOrdIDField
+		if reject := message.Body.Get(&origClOrdID); reject != nil {
+			return reject
+		}
+		open := x.ordersByClOrdID[origClOrdID.Value()]
 		if open == nil {
-			return rejectUnknownClOrdID
+			return rejectUnknownOrigClOrdID
 		}
 		if open.PendingReplace == nil {
 			return rejectNotPendingReplace
@@ -371,15 +379,18 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 		//
 		// A replace request has been accepted by the counterparty.
 		//
-		open := x.ordersByClOrdID[clOrdID.Value()]
+		var origClOrdID field.OrigClOrdIDField
+		if reject := message.Body.Get(&origClOrdID); reject != nil {
+			return reject
+		}
+		open := x.ordersByClOrdID[origClOrdID.Value()]
 		if open == nil {
-			return rejectUnknownClOrdID
+			return rejectUnknownOrigClOrdID
 		}
 		if open.PendingReplace == nil {
 			return rejectNotPendingReplace
 		}
 
-		original := open.ClOrdID
 		if reject := message.Body.Get(&orderID); reject == nil {
 			open.PendingReplace.Accept(orderID.Value())
 		} else {
@@ -388,13 +399,18 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 		//
 		// Accepting promotes the request ClOrdID to the open order ClOrdID.
 		//
-		delete(x.ordersByClOrdID, original)
+		delete(x.ordersByClOrdID, origClOrdID.Value())
 		x.ordersByClOrdID[open.ClOrdID] = open
 
+		ordStatus, reject := x.reportFillOrdStatus(message, open)
+		if reject != nil {
+			return reject
+		}
 		report := open.DraftReport()
-		report.OrdStatus = x.reportFillOrdStatus(message, open)
+		report.OrdStatus = ordStatus
 		report.TransactTime = transactTime.Time
 		report.ExecInst = x.reportExecInst(open.OrderID)
+		x.onReport(report)
 
 	case enum.ExecType_TRADE: // -----------------------------------------------
 		//
@@ -416,8 +432,12 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 			return reject
 		}
 
+		ordStatus, reject := x.reportFillOrdStatus(message, open)
+		if reject != nil {
+			return reject
+		}
 		report := open.DraftReport()
-		report.OrdStatus = x.reportFillOrdStatus(message, open)
+		report.OrdStatus = ordStatus
 		report.LastQty = lastQty.Decimal
 		report.LastPx = lastPx.Decimal
 		report.TransactTime = transactTime.Time
@@ -450,21 +470,21 @@ func (x *Application) handleExecutionReport(message *quickfix.Message) quickfix.
 
 }
 
-func (x *Application) reportFillOrdStatus(message *quickfix.Message, open *dma.OpenOrder) mkt.OrdStatus {
+func (x *Application) reportFillOrdStatus(message *quickfix.Message, open *dma.OpenOrder) (mkt.OrdStatus, quickfix.MessageRejectError) {
 	//
 	// For use after a pending replace or pending cancel reject.
 	//
 	var leavesQty field.LeavesQtyField
 	if reject := message.Body.Get(&leavesQty); reject != nil {
-		return 0 // TODO
+		return 0, reject
 	}
 	if leavesQty.Decimal.IsZero() {
-		return mkt.OrdStatusFilled
+		return mkt.OrdStatusFilled, nil
 	}
 	if leavesQty.Decimal.LessThan(open.OrderQty) {
-		return mkt.OrdStatusPartiallyFilled
+		return mkt.OrdStatusPartiallyFilled, nil
 	}
-	return mkt.OrdStatusNew
+	return mkt.OrdStatusNew, nil
 }
 
 func (x *Application) reportExecInst(orderID string) string {
