@@ -66,19 +66,24 @@ type Delegate struct {
 	memo  OrderMemo
 }
 
-// Action is called by the [run.OrderProcess] for each [run.Composite] update.
-func (x *Delegate) Action(upd *run.Composite[*Order]) bool {
+// Action is called by the [run.OrderProcess] for each [run.Ticker] update.
+func (x *Delegate) Action(upd *run.Ticker, instructions []redis.XMessage, _ []redis.XMessage) bool {
 
 	if upd == nil {
 		return false
 	}
 
-	if len(upd.Instructions) > 0 {
+	if len(instructions) > 0 {
 		//
 		// Scan for cancellation.
 		//
-		for _, ins := range upd.Instructions {
-			if ins.MsgType == mkt.OrderCancel {
+		for _, ins := range instructions {
+			v := ins.Values["msgType"]
+			if v == nil {
+				continue
+			}
+			vs := v.(string)
+			if vs == mkt.OrderCancel.String() {
 				x.removeFromRedis()
 				return true
 			}

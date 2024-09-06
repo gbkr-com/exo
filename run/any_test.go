@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/gbkr-com/mkt"
+	"github.com/redis/go-redis/v9"
 )
 
 type mockSubscriber struct {
@@ -42,7 +43,7 @@ type mockDelegate[T mkt.AnyOrder] struct {
 	out      chan struct{}
 }
 
-func (x *mockDelegate[T]) Action(upd *Composite[T]) bool {
+func (x *mockDelegate[T]) Action(upd *Ticker, _ []redis.XMessage, _ []redis.XMessage) bool {
 	defer func() {
 		if x.out != nil {
 			x.out <- struct{}{}

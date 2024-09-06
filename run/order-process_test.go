@@ -5,7 +5,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gbkr-com/mkt"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 )
 
@@ -14,6 +16,12 @@ func BenchmarkOrderProcess(b *testing.B) {
 	//
 	// Setup.
 	//
+
+	mini := miniredis.RunT(b)
+	defer mini.Close()
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mini.Addr(),
+	})
 
 	order := &mkt.Order{
 		MsgType: mkt.OrderNew,
@@ -35,10 +43,11 @@ func BenchmarkOrderProcess(b *testing.B) {
 
 	out := make(chan struct{}, 1)
 
-	proc := NewOrderProcess(
+	proc := NewOrderProcess[*mkt.Order](
 		order,
 		&mockDelegateFactory[*mkt.Order]{out: out},
-		ConflateComposite,
+		ConflateTicker,
+		rdb,
 	)
 	shutdown.Add(1)
 	go proc.Run(ctx, &shutdown, completed)
@@ -50,7 +59,7 @@ func BenchmarkOrderProcess(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		proc.queue.Push(&Composite[*mkt.Order]{Quote: quote})
+		proc.queue.Push(&Ticker{Quote: quote})
 		<-out
 	}
 

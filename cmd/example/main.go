@@ -58,7 +58,7 @@ func main() {
 	dispatcher := run.NewDispatcher[*Order](
 		instructions,
 		factory,
-		run.ConflateComposite,
+		run.ConflateTicker,
 		reports,
 		subscriber,
 		quoteQueue,
@@ -66,6 +66,7 @@ func main() {
 		func(orderID string, err error) {
 			os.Stderr.WriteString(fmt.Sprintf("OrderID %s error %s", orderID, err.Error()))
 		},
+		rdb,
 	)
 
 	shutdown.Add(1)

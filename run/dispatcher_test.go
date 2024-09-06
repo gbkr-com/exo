@@ -6,8 +6,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,6 +19,12 @@ func TestDispatcherRun(t *testing.T) {
 	//
 	// Set up.
 	//
+
+	mini := miniredis.RunT(t)
+	defer mini.Close()
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mini.Addr(),
+	})
 
 	ctx, cxl := context.WithCancel(context.Background())
 	var shutdown sync.WaitGroup
@@ -34,12 +42,13 @@ func TestDispatcherRun(t *testing.T) {
 	dispatcher := NewDispatcher(
 		instructions,
 		&mockDelegateFactory[*mkt.Order]{},
-		ConflateComposite,
+		ConflateTicker,
 		reports,
 		subscriber,
 		quoteQueue,
 		tradeQueue,
 		func(orderID string, err error) { fmt.Println(orderID, err.Error()) },
+		rdb,
 	)
 
 	shutdown.Add(1)

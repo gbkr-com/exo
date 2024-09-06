@@ -9,18 +9,20 @@ import (
 	"github.com/gbkr-com/exo/dma"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
+	"github.com/redis/go-redis/v9"
 )
 
 // Dispatcher owns all orders and routes information to them.
 type Dispatcher[T mkt.AnyOrder] struct {
 	instructions chan T
 	factory      DelegateFactory[T]
-	conflator    CompositeConflator[T]
+	conflator    TickerConflator
 	reports      chan *mkt.Report
 	subscriber   dma.Subscribable
 	quotes       *utl.ConflatingQueue[string, *mkt.Quote]
 	trades       *utl.ConflatingQueue[string, *mkt.Trade]
 	onError      func(string, error)
+	rdb          *redis.Client
 
 	ordersByOrderID map[string]*OrderProcess[T]
 	ordersBySymbol  map[string][]*OrderProcess[T]
@@ -31,12 +33,13 @@ type Dispatcher[T mkt.AnyOrder] struct {
 func NewDispatcher[T mkt.AnyOrder](
 	instructions chan T,
 	factory DelegateFactory[T],
-	conflator CompositeConflator[T],
+	conflator TickerConflator,
 	reports chan *mkt.Report,
 	subscriber dma.Subscribable,
 	quotes *utl.ConflatingQueue[string, *mkt.Quote],
 	trades *utl.ConflatingQueue[string, *mkt.Trade],
 	onError func(string, error),
+	rdb *redis.Client,
 ) *Dispatcher[T] {
 	dispatcher := &Dispatcher[T]{
 		instructions:    instructions,
@@ -50,6 +53,7 @@ func NewDispatcher[T mkt.AnyOrder](
 		ordersBySymbol:  make(map[string][]*OrderProcess[T]),
 		completedOrders: make(chan string, 1024), // TODO configure
 		onError:         onError,
+		rdb:             rdb,
 	}
 	return dispatcher
 }
@@ -114,7 +118,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		//
 		// Make a new process for the order.
 		//
-		process = NewOrderProcess(order, x.factory, x.conflator)
+		process = NewOrderProcess(order, x.factory, x.conflator, x.rdb)
 		x.ordersByOrderID[def.OrderID] = process
 		shutdown.Add(1)
 		go process.Run(ctx, shutdown, x.completedOrders)
@@ -151,9 +155,13 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		x.removeOrder(def.OrderID)
 	}
 	//
-	// Simply push the new order instructions to the queue.
+	// Add the new order instructions to the order specific Redis stream. Use a
+	// different context to ensure there is no interference between the parent
+	// being cancelled and the Redis operations completing.
 	//
-	process.Queue().Push(&Composite[T]{Instructions: []T{order}})
+	if err := WriteOrderInstructions(context.Background(), x.rdb, order); err != nil {
+		x.onError(def.OrderID, fmt.Errorf("Dispatcher: cannot write order to stream: %w", err))
+	}
 
 }
 
@@ -188,12 +196,13 @@ func (x *Dispatcher[T]) removeOrder(orderID string) {
 
 func (x *Dispatcher[T]) handleReport(report *mkt.Report) {
 
-	process, ok := x.ordersByOrderID[report.OrderID]
-	if !ok {
+	if _, ok := x.ordersByOrderID[report.OrderID]; !ok {
 		x.onError(report.OrderID, fmt.Errorf("Dispatcher: unexpected mkt.Report"))
 		return
 	}
-	process.queue.Push(&Composite[T]{Reports: []*mkt.Report{report}})
+	if err := WriteOrderReport(context.Background(), x.rdb, report); err != nil {
+		x.onError(report.OrderID, fmt.Errorf("Dispatcher: cannot write report to stream"))
+	}
 
 }
 
@@ -206,7 +215,7 @@ func (x *Dispatcher[T]) handleQuote(quote *mkt.Quote) {
 	}
 
 	for _, p := range processes {
-		composite := &Composite[T]{Quote: quote}
+		composite := &Ticker{Quote: quote}
 		p.Queue().Push(composite)
 	}
 
@@ -221,7 +230,7 @@ func (x *Dispatcher[T]) handleTrade(trade *mkt.Trade) {
 	}
 
 	for _, p := range processes {
-		composite := &Composite[T]{Trade: trade}
+		composite := &Ticker{Trade: trade}
 		p.Queue().Push(composite)
 	}
 
