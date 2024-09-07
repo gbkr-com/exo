@@ -2,7 +2,6 @@ package run
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -121,21 +120,12 @@ func (x *Handler[T]) consumeStreams(ctx context.Context) (instructions []redis.X
 			}
 		case x.reportsStream:
 			for _, message := range stream.Messages {
-
-				v := message.Values
-				s, ok := v["json"]
-				if !ok {
-					continue
-				}
-				j, ok := s.(string)
-				if !ok {
-					continue
-				}
-				var report mkt.Report
-				if err = json.Unmarshal([]byte(j), &report); err != nil {
+				var report *mkt.Report
+				report, err = UnmarshalOrderReport(message)
+				if err != nil {
 					return
 				}
-				reports = append(reports, &report)
+				reports = append(reports, report)
 				x.lastReportID = message.ID
 			}
 		}

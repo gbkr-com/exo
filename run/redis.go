@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gbkr-com/mkt"
 	"github.com/redis/go-redis/v9"
@@ -58,4 +59,24 @@ func WriteOrderReport(ctx context.Context, rdb *redis.Client, report *mkt.Report
 	}
 	_, err = rdb.XAdd(ctx, args).Result()
 	return err
+}
+
+// UnmarshalOrderReport translates the stream message into a [*mkt.Report].
+func UnmarshalOrderReport(message redis.XMessage) (*mkt.Report, error) {
+
+	v := message.Values
+	s, ok := v["json"]
+	if !ok {
+		return nil, fmt.Errorf("UnmarshalOrderReport: message does not contain the 'json' field")
+	}
+	j, ok := s.(string)
+	if !ok {
+		return nil, fmt.Errorf("UnmarshalOrderReport: 'json' value is not a string")
+	}
+	var report mkt.Report
+	if err := json.Unmarshal([]byte(j), &report); err != nil {
+		return nil, fmt.Errorf("UnmarshalOrderReport: %w", err)
+	}
+	return &report, nil
+
 }
