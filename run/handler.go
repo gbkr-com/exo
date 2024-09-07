@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gbkr-com/exo/env"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 	"github.com/redis/go-redis/v9"
@@ -71,7 +72,7 @@ func (x *Handler[T]) Run(ctx context.Context, shutdown *sync.WaitGroup, complete
 				return
 			}
 
-		case <-time.After(time.Second): // TODO configure
+		case <-time.After(env.RunHandlerTimeout):
 			//
 			// For slow trading listings, look for instructions and/or
 			// reports when there is no ticker update for some time.
@@ -103,7 +104,7 @@ func (x *Handler[T]) consumeStreams(ctx context.Context) (instructions []redis.X
 	args := &redis.XReadArgs{
 		Streams: []string{x.instructionsStream, x.reportsStream, x.lastInstructionID, x.lastReportID},
 		Count:   0,
-		Block:   time.Millisecond,
+		Block:   env.RedisXReadTimeout,
 	}
 
 	var streams []redis.XStream

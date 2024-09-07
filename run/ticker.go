@@ -1,6 +1,7 @@
 package run
 
 import (
+	"github.com/gbkr-com/exo/env"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 )
@@ -31,7 +32,7 @@ func ConflateTicker(existing *Ticker, latest *Ticker) *Ticker {
 		if existing.Trade == nil {
 			existing.Trade = latest.Trade
 		} else {
-			existing.Trade.Aggregate(latest.Trade, 8) // TODO precision
+			existing.Trade.Aggregate(latest.Trade, env.DefaultDecimalPlaces)
 		}
 	}
 

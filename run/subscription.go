@@ -1,6 +1,7 @@
 package run
 
 import (
+	"github.com/gbkr-com/exo/env"
 	"github.com/gbkr-com/mkt"
 	"github.com/gbkr-com/utl"
 )
@@ -34,6 +35,6 @@ func ConflateTrade(existing *mkt.Trade, latest *mkt.Trade) *mkt.Trade {
 		return latest
 	}
 
-	existing.Aggregate(latest, 8) // TODO precision
+	existing.Aggregate(latest, env.DefaultDecimalPlaces)
 	return existing
 }
