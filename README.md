@@ -28,12 +28,12 @@ In keeping with standard practice, the side and symbol of an order are immutable
 
 See:
 - [Dispatcher](run/dispatcher.go)
-- [OrderProcess](run/order-process.go)
+- [Handler](run/handler.go)
 - [Delegate](run/delegate.go)
 
-The `Dispatcher` receives orders and market data. For each new order it creates an `OrderProcess`, and launches a goroutine to manage work on that order. The `OrderProcess` has no order handling logic: it passes all updates to its associated `Delegate` to do that work.
+The `Dispatcher` receives orders and market data. For each new order it creates a `Handler`, and launches a goroutine to manage work on that order. The `Handler` has no order handling logic: it passes all updates to its associated `Delegate` to do that work.
 
-The `Dispatcher` and `OrderProcess` are the 'container' surrounding a delegate. Both do not need to know much about an order apart from its identity. Both use Go generics so that the basic `mkt.Order` can be extended without affecting how `Dispatcher` and `OrderProcess` work.
+The `Dispatcher` and `Handler` are the 'container' surrounding a delegate. Both do not need to know much about an order apart from its identity. Both use Go generics so that the basic `mkt.Order` can be extended without affecting how `Dispatcher` and `Handler` work.
 
 #### Channels
 
@@ -53,7 +53,7 @@ I/O dominates compute. And, for many crypto markets, transaction I/O dominates m
 
 The number of steps from data arrival to a delegate is minimal. For market data it is one conflating queue to the `Dispatcher`, then one more to the `Delegate`.
 
-[BenchmarkOrderProcess](run/order-process_test.go) benchmarks a quote from entry to the `OrderProcess` to receipt by the `Delegate`, where it is forced to acknowledge the quote before the benchmark continues, thereby disabling conlfation. On an Apple M1, that benchmarks at ~430ns, or ~2m operations per second.
+[BenchmarkHandler](run/order-process_test.go) benchmarks a quote from entry to the `Handler` to receipt by the `Delegate`, where it is forced to acknowledge the quote before the benchmark continues, thereby disabling conlfation. On an Apple M1, that benchmarks at ~430ns, or ~2m operations per second.
 
 ### Cloud
 

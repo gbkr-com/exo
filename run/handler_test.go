@@ -11,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func BenchmarkOrderProcess(b *testing.B) {
+func BenchmarkHandler(b *testing.B) {
 
 	//
 	// Setup.
