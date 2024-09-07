@@ -43,7 +43,7 @@ type mockDelegate[T mkt.AnyOrder] struct {
 	out      chan struct{}
 }
 
-func (x *mockDelegate[T]) Action(upd *Ticker, _ []redis.XMessage, _ []redis.XMessage) bool {
+func (x *mockDelegate[T]) Action(upd *Ticker, _ []redis.XMessage, _ []*mkt.Report) bool {
 	defer func() {
 		if x.out != nil {
 			x.out <- struct{}{}

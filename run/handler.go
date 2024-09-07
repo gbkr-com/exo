@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -10,24 +11,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// NewOrderProcess returns an [*OrderProcess] for an order.
-func NewOrderProcess[T mkt.AnyOrder](order T, factory DelegateFactory[T], conflate TickerConflator, rdb *redis.Client) *OrderProcess[T] {
+// NewHandler returns a [*Handler] for an order.
+func NewHandler[T mkt.AnyOrder](order T, factory DelegateFactory[T], conflate TickerConflator, rdb *redis.Client) *Handler[T] {
+
+	def := order.Definition()
 	// TODO recover last ID's
-	return &OrderProcess[T]{
-		order:              order,
+	return &Handler[T]{
+		order:              def,
 		queue:              NewTickerConflatingQueue(conflate),
 		delegate:           factory.New(order),
 		rdb:                rdb,
-		instructionsStream: MakeOrderInstructionsStreamName(order.Definition()),
-		reportsStream:      MakeOrderReportsStreamName(order.Definition()),
-		orderHash:          MakeOrderHashKey(order.Definition()),
+		instructionsStream: MakeOrderInstructionsStreamName(def),
+		reportsStream:      MakeOrderReportsStreamName(def),
+		orderHash:          MakeOrderHashKey(def),
 	}
 }
 
-// An OrderProcess runs for the lifetime of an order.
-type OrderProcess[T mkt.AnyOrder] struct {
-	order              T                                     // The current order instructions.
-	queue              *utl.ConflatingQueue[string, *Ticker] // The composite queue given to this process.
+// A Handler runs for the lifetime of an order, passing ticker data and other
+// updates to the [Delegate].
+type Handler[T mkt.AnyOrder] struct {
+	order              *mkt.Order
+	queue              *utl.ConflatingQueue[string, *Ticker]
 	delegate           Delegate[T]
 	rdb                *redis.Client
 	instructionsStream string
@@ -38,19 +42,19 @@ type OrderProcess[T mkt.AnyOrder] struct {
 }
 
 // Definition returns the [mkt.Order.Definition] for the [Dispatcher].
-func (x *OrderProcess[T]) Definition() *mkt.Order {
-	return x.order.Definition()
+func (x *Handler[T]) Definition() *mkt.Order {
+	return x.order
 }
 
 // Queue returns the queue for the [Dispatcher].
-func (x *OrderProcess[T]) Queue() *utl.ConflatingQueue[string, *Ticker] {
+func (x *Handler[T]) Queue() *utl.ConflatingQueue[string, *Ticker] {
 	return x.queue
 }
 
 // Run until the context is cancelled or the [Delegate] has completed. When
 // the [Delegate] completes it sends the OrderID to the given channel, to notify
 // the [Dispatcher].
-func (x *OrderProcess[T]) Run(ctx context.Context, shutdown *sync.WaitGroup, completed chan<- string) {
+func (x *Handler[T]) Run(ctx context.Context, shutdown *sync.WaitGroup, completed chan<- string) {
 
 	defer shutdown.Done()
 
@@ -82,7 +86,7 @@ func (x *OrderProcess[T]) Run(ctx context.Context, shutdown *sync.WaitGroup, com
 	}
 }
 
-func (x *OrderProcess[T]) process(ctx context.Context, composite *Ticker, completed chan<- string) (done bool) {
+func (x *Handler[T]) process(ctx context.Context, composite *Ticker, completed chan<- string) (done bool) {
 	instructions, reports, err := x.consumeStreams(ctx)
 	if err != nil {
 		return
@@ -90,12 +94,12 @@ func (x *OrderProcess[T]) process(ctx context.Context, composite *Ticker, comple
 	done = x.delegate.Action(composite, instructions, reports)
 	x.checkpoint(ctx)
 	if done {
-		completed <- x.order.Definition().OrderID
+		completed <- x.order.OrderID
 	}
 	return
 }
 
-func (x *OrderProcess[T]) consumeStreams(ctx context.Context) (instructions []redis.XMessage, reports []redis.XMessage, err error) {
+func (x *Handler[T]) consumeStreams(ctx context.Context) (instructions []redis.XMessage, reports []*mkt.Report, err error) {
 
 	args := &redis.XReadArgs{
 		Streams: []string{x.instructionsStream, x.reportsStream, x.lastInstructionID, x.lastReportID},
@@ -117,7 +121,21 @@ func (x *OrderProcess[T]) consumeStreams(ctx context.Context) (instructions []re
 			}
 		case x.reportsStream:
 			for _, message := range stream.Messages {
-				reports = append(reports, message)
+
+				v := message.Values
+				s, ok := v["json"]
+				if !ok {
+					continue
+				}
+				j, ok := s.(string)
+				if !ok {
+					continue
+				}
+				var report mkt.Report
+				if err = json.Unmarshal([]byte(j), &report); err != nil {
+					return
+				}
+				reports = append(reports, &report)
 				x.lastReportID = message.ID
 			}
 		}
@@ -127,7 +145,7 @@ func (x *OrderProcess[T]) consumeStreams(ctx context.Context) (instructions []re
 
 }
 
-func (x *OrderProcess[T]) checkpoint(ctx context.Context) error {
+func (x *Handler[T]) checkpoint(ctx context.Context) error {
 	_, err := x.rdb.HSet(
 		ctx,
 		x.orderHash,

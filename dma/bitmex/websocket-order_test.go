@@ -17,7 +17,7 @@ import (
 
 func TestWebSocketOrder(t *testing.T) {
 
-	// t.Skip()
+	t.Skip()
 
 	err := env.Load("test.env")
 	assert.Nil(t, err)

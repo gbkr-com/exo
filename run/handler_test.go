@@ -43,7 +43,7 @@ func BenchmarkOrderProcess(b *testing.B) {
 
 	out := make(chan struct{}, 1)
 
-	proc := NewOrderProcess[*mkt.Order](
+	proc := NewHandler(
 		order,
 		&mockDelegateFactory[*mkt.Order]{out: out},
 		ConflateTicker,

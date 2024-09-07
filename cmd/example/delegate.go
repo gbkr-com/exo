@@ -34,7 +34,7 @@ type DelegateFactory struct {
 	rdb *redis.Client
 }
 
-// New is called by [run.Dispatcher] when creating the [run.OrderProcess].
+// New is called by [run.Dispatcher] when creating the [run.Handler].
 func (x *DelegateFactory) New(order *Order) run.Delegate[*Order] {
 
 	if order == nil {
@@ -66,8 +66,8 @@ type Delegate struct {
 	memo  OrderMemo
 }
 
-// Action is called by the [run.OrderProcess] for each [run.Ticker] update.
-func (x *Delegate) Action(upd *run.Ticker, instructions []redis.XMessage, _ []redis.XMessage) bool {
+// Action is called by the [run.Handler] for each collection of updates.
+func (x *Delegate) Action(upd *run.Ticker, instructions []redis.XMessage, _ []*mkt.Report) bool {
 
 	if upd == nil {
 		return false
@@ -121,7 +121,7 @@ func (x *Delegate) Action(upd *run.Ticker, instructions []redis.XMessage, _ []re
 	return false
 }
 
-// CleanUp is called by [run.OrderProcess] when [run.Dispatcher] is terminating.
+// CleanUp is called by [run.Handler] when [run.Dispatcher] is terminating.
 func (x *Delegate) CleanUp() {}
 
 func (x *Delegate) saveToRedis() {

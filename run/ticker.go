@@ -6,7 +6,7 @@ import (
 )
 
 // Ticker is a combined update of [mkt.Quote] and [mkt.Trade] to be pushed into
-// a [utl.ConflatingQueue]for an [OrderProcess].
+// a [utl.ConflatingQueue]for an [Handler].
 type Ticker struct {
 	Quote *mkt.Quote
 	Trade *mkt.Trade
@@ -38,7 +38,7 @@ func ConflateTicker(existing *Ticker, latest *Ticker) *Ticker {
 	return existing
 }
 
-// NewTickerConflatingQueue makes a composite queue for an [OrderProcess].
+// NewTickerConflatingQueue makes a composite queue for an [Handler].
 func NewTickerConflatingQueue(fn TickerConflator) *utl.ConflatingQueue[string, *Ticker] {
 	return utl.NewConflatingQueue[string, *Ticker](
 		func(*Ticker) string {

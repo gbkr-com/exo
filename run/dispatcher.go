@@ -24,8 +24,8 @@ type Dispatcher[T mkt.AnyOrder] struct {
 	onError      func(string, error)
 	rdb          *redis.Client
 
-	ordersByOrderID map[string]*OrderProcess[T]
-	ordersBySymbol  map[string][]*OrderProcess[T]
+	ordersByOrderID map[string]*Handler[T]
+	ordersBySymbol  map[string][]*Handler[T]
 	completedOrders chan string
 }
 
@@ -49,8 +49,8 @@ func NewDispatcher[T mkt.AnyOrder](
 		subscriber:      subscriber,
 		quotes:          quotes,
 		trades:          trades,
-		ordersByOrderID: make(map[string]*OrderProcess[T]),
-		ordersBySymbol:  make(map[string][]*OrderProcess[T]),
+		ordersByOrderID: make(map[string]*Handler[T]),
+		ordersBySymbol:  make(map[string][]*Handler[T]),
 		completedOrders: make(chan string, 1024), // TODO configure
 		onError:         onError,
 		rdb:             rdb,
@@ -118,7 +118,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 		//
 		// Make a new process for the order.
 		//
-		process = NewOrderProcess(order, x.factory, x.conflator, x.rdb)
+		process = NewHandler(order, x.factory, x.conflator, x.rdb)
 		x.ordersByOrderID[def.OrderID] = process
 		shutdown.Add(1)
 		go process.Run(ctx, shutdown, x.completedOrders)
@@ -130,7 +130,7 @@ func (x *Dispatcher[T]) handleOrder(ctx context.Context, shutdown *sync.WaitGrou
 			//
 			// Subscribe on first appearance.
 			//
-			x.ordersBySymbol[def.Symbol] = []*OrderProcess[T]{process}
+			x.ordersBySymbol[def.Symbol] = []*Handler[T]{process}
 			x.subscriber.Subscribe(def.Symbol)
 			return
 		}
@@ -183,7 +183,7 @@ func (x *Dispatcher[T]) removeOrder(orderID string) {
 		x.subscriber.Unsubscribe(symbol)
 		return
 	}
-	others = slices.DeleteFunc(others, func(p *OrderProcess[T]) bool { return p.Definition().OrderID == orderID })
+	others = slices.DeleteFunc(others, func(p *Handler[T]) bool { return p.Definition().OrderID == orderID })
 	if len(others) == 0 {
 		x.subscriber.Unsubscribe(symbol)
 		delete(x.ordersBySymbol, symbol)
